@@ -37,6 +37,8 @@ use self::itemrenderer::CanvasRc;
 mod font_cache;
 mod images;
 mod itemrenderer;
+#[cfg(feature = "wgpu-29")]
+mod backdrop_blur;
 #[cfg(feature = "opengl")]
 pub mod opengl;
 #[cfg(feature = "wgpu-29")]
@@ -94,6 +96,12 @@ pub trait GraphicsBackend {
         _height: u32,
         _render: &dyn Fn() -> Result<(), PlatformError>,
     ) -> Option<Result<SharedPixelBuffer<Rgba8Pixel>, PlatformError>> {
+        None
+    }
+
+    fn backdrop_blur_callback(
+        &self,
+    ) -> Option<itemrenderer::BackdropBlurCallback<Self::Renderer>> {
         None
     }
 }
@@ -250,6 +258,7 @@ impl<B: GraphicsBackend> FemtoVGRenderer<B> {
                     window,
                     width.get(),
                     height.get(),
+                    self.graphics_backend.backdrop_blur_callback(),
                 );
 
                 if let Some(window_item_rc) = window_inner.window_item_rc() {

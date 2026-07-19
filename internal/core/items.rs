@@ -329,12 +329,31 @@ declare_item_vtable! {
     fn slint_get_EmptyVTable() -> EmptyVTable for Empty
 }
 
+const MAX_BACKGROUND_BLUR: Coord = 32.;
+
+fn normalized_background_blur(value: LogicalLength) -> LogicalLength {
+    LogicalLength::new(value.get().clamp(0., MAX_BACKGROUND_BLUR))
+}
+
+#[cfg(test)]
+mod background_blur_tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_disabled_and_oversized_values() {
+        assert_eq!(normalized_background_blur(LogicalLength::new(-4.)).get(), 0.);
+        assert_eq!(normalized_background_blur(LogicalLength::new(18.)).get(), 18.);
+        assert_eq!(normalized_background_blur(LogicalLength::new(64.)).get(), 32.);
+    }
+}
+
 #[repr(C)]
 #[derive(FieldOffsets, Default, SlintElement)]
 #[pin]
 /// The implementation of the `Rectangle` element
 pub struct Rectangle {
     pub background: Property<Brush>,
+    pub background_blur: Property<LogicalLength>,
     pub cached_rendering_data: CachedRenderingData,
 }
 
@@ -428,6 +447,9 @@ impl RenderRectangle for Rectangle {
     fn background(self: Pin<&Self>) -> Brush {
         self.background()
     }
+    fn background_blur(self: Pin<&Self>) -> LogicalLength {
+        normalized_background_blur(self.background_blur())
+    }
 }
 
 impl ItemConsts for Rectangle {
@@ -447,6 +469,7 @@ declare_item_vtable! {
 /// The implementation of the `BasicBorderRectangle` element
 pub struct BasicBorderRectangle {
     pub background: Property<Brush>,
+    pub background_blur: Property<LogicalLength>,
     pub border_width: Property<LogicalLength>,
     pub border_radius: Property<LogicalLength>,
     pub border_color: Property<Brush>,
@@ -543,6 +566,9 @@ impl RenderBorderRectangle for BasicBorderRectangle {
     fn background(self: Pin<&Self>) -> Brush {
         self.background()
     }
+    fn background_blur(self: Pin<&Self>) -> LogicalLength {
+        normalized_background_blur(self.background_blur())
+    }
     fn border_width(self: Pin<&Self>) -> LogicalLength {
         self.border_width()
     }
@@ -571,6 +597,7 @@ declare_item_vtable! {
 /// The implementation of the `BorderRectangle` element
 pub struct BorderRectangle {
     pub background: Property<Brush>,
+    pub background_blur: Property<LogicalLength>,
     pub border_width: Property<LogicalLength>,
     pub border_radius: Property<LogicalLength>,
     pub border_top_left_radius: Property<LogicalLength>,
@@ -670,6 +697,9 @@ impl Item for BorderRectangle {
 impl RenderBorderRectangle for BorderRectangle {
     fn background(self: Pin<&Self>) -> Brush {
         self.background()
+    }
+    fn background_blur(self: Pin<&Self>) -> LogicalLength {
+        normalized_background_blur(self.background_blur())
     }
     fn border_width(self: Pin<&Self>) -> LogicalLength {
         self.border_width()

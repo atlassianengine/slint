@@ -21,7 +21,7 @@ opengl = []
 # wgpu-29 enables the wgpu backend for internal use (e.g. linuxkms DRM rendering).
 # unstable-wgpu-29 additionally exposes public API integration (GraphicsAPI, texture import).
 wgpu = ["wgpu-29"]
-wgpu-29 = ["dep:wgpu-29", "femtovg/wgpu", "i-slint-core/wgpu-29"]
+wgpu-29 = ["dep:wgpu-29", "dep:bytemuck", "femtovg/wgpu", "i-slint-core/wgpu-29"]
 unstable-wgpu-29 = ["wgpu-29", "i-slint-core/unstable-wgpu-29"]
 
 [dependencies]
@@ -42,6 +42,7 @@ rgb = { version = "0.8.27" }
 glow = { workspace = true }
 
 wgpu-29 = { workspace = true, optional = true, default-features = true }
+bytemuck = { workspace = true, optional = true, features = ["derive"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 web-sys = { workspace = true, features = ["console", "WebGlContextAttributes", "CanvasRenderingContext2d", "HtmlInputElement", "HtmlCanvasElement", "Window", "Document"] }
@@ -57,6 +58,15 @@ i-slint-core = { workspace = true, features = ["image-decoders", "svg"] }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(slint_nightly_test)"] }
+
+[[example]]
+name = "backdrop_blur_spike"
+path = "examples/backdrop_blur_spike.rs"
+required-features = ["wgpu-29"]
+
+[dev-dependencies]
+spin_on = { workspace = true }
+winit = "0.30.2"
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--generate-link-to-definition"]

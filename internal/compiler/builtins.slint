@@ -34,6 +34,13 @@
 }
 
 component Rectangle inherits Empty {
+    /// Blurs the already-painted content behind this rectangle. The value is clamped to the
+    /// range `0px` to `32px`; zero and negative values disable the effect. In Slint 1.17.1,
+    /// native backdrop blur is implemented by the FemtoVG-WGPU renderer. Other renderers retain
+    /// the rectangle's normal background and border without applying the blur.
+    /// \default 0px
+    //-shadowable
+    in property <length> background-blur;
     /// The background brush of this `Rectangle`.
     ///
     /// ```slint imageAlt="rectangle background" width="200" height="400"

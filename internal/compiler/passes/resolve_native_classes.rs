@@ -146,6 +146,14 @@ fn select_minimal_class() {
     assert_eq!(
         select_minimal_class_based_on_property_usage(
             &rect.native_class,
+            ["background-blur".to_smolstr()].iter()
+        )
+        .class_name,
+        "Rectangle",
+    );
+    assert_eq!(
+        select_minimal_class_based_on_property_usage(
+            &rect.native_class,
             ["border-width".to_smolstr()].iter()
         )
         .class_name,

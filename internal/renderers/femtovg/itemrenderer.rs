@@ -74,6 +74,8 @@ impl<R: femtovg::Renderer + TextureImporter> ItemGraphicsCacheEntry<R> {
 
 pub(super) type ItemGraphicsCache<R> = ItemCache<Option<ItemGraphicsCacheEntry<R>>>;
 pub(super) type LayerCache<R> = ItemCache<Option<(PhysicalPoint, Rc<Texture<R>>)>>;
+pub(super) type BackdropBlurCallback<R> =
+    Rc<dyn Fn(&CanvasRc<R>, &femtovg::Path, PhysicalLength)>;
 
 const KAPPA90: f32 = 0.55228;
 
@@ -100,6 +102,7 @@ pub struct GLItemRenderer<'a, R: femtovg::Renderer + TextureImporter> {
     /// track the state manually since femtovg don't have accessor for its state
     state: Vec<State>,
     metrics: RenderingMetrics,
+    backdrop_blur: Option<BackdropBlurCallback<R>>,
 }
 
 fn rect_with_radius_to_path(
@@ -220,13 +223,16 @@ impl<'a, R: femtovg::Renderer + TextureImporter> ItemRenderer for GLItemRenderer
         }
         // TODO: cache path in item to avoid re-tesselation
         let path = rect_to_path(geometry);
-        let paint = match self.brush_to_paint(rect.background(), &path) {
-            Some(paint) => paint,
-            None => return,
+        let blur = rect.background_blur() * self.scale_factor;
+        if blur.get() > 0. {
+            if let Some(draw_backdrop) = &self.backdrop_blur {
+                draw_backdrop(&self.canvas, &path, blur);
+            }
         }
+        let Some(paint) = self.brush_to_paint(rect.background(), &path) else { return };
         // Since we're filling a straight rectangle with either color or gradient, save
         // the extra stroke triangle strip around the edges
-        .with_anti_alias(false);
+        let paint = paint.with_anti_alias(false);
         self.canvas.borrow_mut().fill_path(&path, &paint);
     }
 
@@ -285,6 +291,13 @@ impl<'a, R: femtovg::Renderer + TextureImporter> ItemRenderer for GLItemRenderer
 
             (background_path, Some(border_path))
         };
+
+        let blur = rect.background_blur() * self.scale_factor;
+        if blur.get() > 0. {
+            if let Some(draw_backdrop) = &self.backdrop_blur {
+                draw_backdrop(&self.canvas, &background_path, blur);
+            }
+        }
 
         let fill_paint = self.brush_to_paint(rect.background(), &background_path);
 
@@ -1157,6 +1170,7 @@ impl<'a, R: femtovg::Renderer + TextureImporter> GLItemRenderer<'a, R> {
         window: &'a i_slint_core::api::Window,
         width: u32,
         height: u32,
+        backdrop_blur: Option<BackdropBlurCallback<R>>,
     ) -> Self {
         let scale_factor = ScaleFactor::new(window.scale_factor());
         Self {
@@ -1178,6 +1192,7 @@ impl<'a, R: femtovg::Renderer + TextureImporter> GLItemRenderer<'a, R> {
                 current_render_target: femtovg::RenderTarget::Screen,
             }],
             metrics: RenderingMetrics { layers_created: Some(0), ..Default::default() },
+            backdrop_blur,
         }
     }
 

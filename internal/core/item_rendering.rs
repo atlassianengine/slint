@@ -323,12 +323,18 @@ fn item_with_children_bounding_rect_transformed(
 #[allow(missing_docs)]
 pub trait RenderRectangle {
     fn background(self: Pin<&Self>) -> Brush;
+    fn background_blur(self: Pin<&Self>) -> LogicalLength {
+        LogicalLength::default()
+    }
 }
 
 /// Trait for an item that represent a Rectangle with a border to the Renderer
 #[allow(missing_docs)]
 pub trait RenderBorderRectangle {
     fn background(self: Pin<&Self>) -> Brush;
+    fn background_blur(self: Pin<&Self>) -> LogicalLength {
+        LogicalLength::default()
+    }
     fn border_width(self: Pin<&Self>) -> LogicalLength;
     fn border_radius(self: Pin<&Self>) -> LogicalBorderRadius;
     fn border_color(self: Pin<&Self>) -> Brush;

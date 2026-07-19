@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
 
 // cSpell: ignore readback Texel unpadded
-use std::{cell::RefCell, pin::Pin, rc::Rc};
+use std::{
+    cell::RefCell,
+    pin::Pin,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 
 use i_slint_core::platform::PlatformError;
 use i_slint_core::renderer::RendererSealed;
@@ -21,32 +26,24 @@ pub struct WGPUBackend {
     surface_config: RefCell<Option<wgpu::SurfaceConfiguration>>,
     surface: RefCell<Option<wgpu::Surface<'static>>>,
     snapshot_output: RefCell<Option<femtovg::renderer::WGPURenderOutput>>,
+    backdrop_blur: RefCell<Option<Rc<crate::backdrop_blur::BackdropBlur>>>,
+    pending_backdrop_resize: RefCell<Option<(u32, u32, Instant)>>,
 }
 
 pub enum WGPUWindowSurface {
-    Surface(wgpu::SurfaceTexture),
+    Surface {
+        frame: wgpu::SurfaceTexture,
+        output: femtovg::renderer::WGPURenderOutput,
+        uses_backdrop: bool,
+    },
     Snapshot(femtovg::renderer::WGPURenderOutput),
-}
-
-enum WGPURenderSource<'a> {
-    Texture(&'a wgpu::Texture),
-    Output(femtovg::renderer::WGPURenderOutput),
-}
-
-impl<'a> From<WGPURenderSource<'a>> for femtovg::renderer::WGPURenderOutput {
-    fn from(src: WGPURenderSource<'a>) -> Self {
-        match src {
-            WGPURenderSource::Texture(t) => t.into(),
-            WGPURenderSource::Output(o) => o,
-        }
-    }
 }
 
 impl WindowSurface<femtovg::renderer::WGPURenderer> for WGPUWindowSurface {
     fn render_output(&self) -> impl Into<femtovg::renderer::WGPURenderOutput> {
         match self {
-            WGPUWindowSurface::Surface(st) => WGPURenderSource::Texture(&st.texture),
-            WGPUWindowSurface::Snapshot(ro) => WGPURenderSource::Output(ro.clone()),
+            WGPUWindowSurface::Surface { output, .. } => output.clone(),
+            WGPUWindowSurface::Snapshot(ro) => ro.clone(),
         }
     }
 }
@@ -166,12 +163,16 @@ impl GraphicsBackend for WGPUBackend {
             surface_config: Default::default(),
             surface: Default::default(),
             snapshot_output: Default::default(),
+            backdrop_blur: Default::default(),
+            pending_backdrop_resize: Default::default(),
         }
     }
 
     fn clear_graphics_context(&self) {
         self.surface_config.borrow_mut().take();
         self.surface.borrow_mut().take();
+        self.backdrop_blur.borrow_mut().take();
+        self.pending_backdrop_resize.borrow_mut().take();
         self.queue.borrow_mut().take();
         self.device.borrow_mut().take();
     }
@@ -180,6 +181,9 @@ impl GraphicsBackend for WGPUBackend {
         &self,
     ) -> Result<BeginRendering<Self::WindowSurface>, Box<dyn std::error::Error + Send + Sync>> {
         if let Some(snapshot_output) = self.snapshot_output.borrow().clone() {
+            if let Some(backdrop) = self.backdrop_blur.borrow().as_ref() {
+                backdrop.begin_frame(false);
+            }
             return Ok(BeginRendering::Acquired(WGPUWindowSurface::Snapshot(snapshot_output)));
         }
         let surface = self.surface.borrow();
@@ -231,7 +235,31 @@ impl GraphicsBackend for WGPUBackend {
                 }
             }
         };
-        Ok(BeginRendering::Acquired(WGPUWindowSurface::Surface(frame)))
+        let Some(backdrop) = self.backdrop_blur.borrow().clone() else {
+            return Err("FemtoVG-WGPU backdrop presentation state is unavailable".into());
+        };
+        let resize_is_settled = self
+            .pending_backdrop_resize
+            .borrow()
+            .as_ref()
+            .is_some_and(|(_, _, requested_at)| requested_at.elapsed() >= Duration::from_millis(120));
+        if resize_is_settled {
+            if let Some((width, height, _)) = self.pending_backdrop_resize.borrow_mut().take() {
+                backdrop.resize(width, height);
+            }
+        }
+        let uses_backdrop = self.pending_backdrop_resize.borrow().is_none();
+        backdrop.begin_frame(uses_backdrop);
+        let output = if uses_backdrop {
+            backdrop.render_output()
+        } else {
+            (&frame.texture).into()
+        };
+        Ok(BeginRendering::Acquired(WGPUWindowSurface::Surface {
+            frame,
+            output,
+            uses_backdrop,
+        }))
     }
 
     fn submit_commands(&self, commands: <Self::Renderer as femtovg::Renderer>::CommandBuffer) {
@@ -242,8 +270,11 @@ impl GraphicsBackend for WGPUBackend {
         &self,
         surface: Self::WindowSurface,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        if let WGPUWindowSurface::Surface(st) = surface {
-            st.present();
+        if let WGPUWindowSurface::Surface { frame, uses_backdrop, .. } = surface {
+            if uses_backdrop && let Some(backdrop) = self.backdrop_blur.borrow().as_ref() {
+                backdrop.copy_to_surface(&frame.texture);
+            }
+            frame.present();
         }
         Ok(())
     }
@@ -297,6 +328,12 @@ impl GraphicsBackend for WGPUBackend {
         ))
     }
 
+    fn backdrop_blur_callback(
+        &self,
+    ) -> Option<crate::itemrenderer::BackdropBlurCallback<Self::Renderer>> {
+        self.backdrop_blur.borrow().as_ref().map(|state| state.callback())
+    }
+
     fn resize(
         &self,
         width: std::num::NonZeroU32,
@@ -316,6 +353,8 @@ impl GraphicsBackend for WGPUBackend {
         surface_config.height = height.get();
 
         surface.configure(device, surface_config);
+        *self.pending_backdrop_resize.borrow_mut() =
+            Some((width.get(), height.get(), Instant::now()));
         Ok(())
     }
 }
@@ -369,12 +408,11 @@ impl FemtoVGRenderer<WGPUBackend> {
         let swapchain_format = swapchain_capabilities
             .formats
             .iter()
-            .find(|f| {
-                matches!(f, wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm)
-            })
+            .find(|f| **f == wgpu::TextureFormat::Rgba8Unorm)
             .copied()
-            .unwrap_or_else(|| swapchain_capabilities.formats[0]);
+            .ok_or("FemtoVG-WGPU backdrop blur requires an Rgba8Unorm presentation surface")?;
         surface_config.format = swapchain_format;
+        surface_config.usage |= wgpu::TextureUsages::COPY_DST;
 
         // The default `Opaque` discards the scene's alpha; pick a translucent mode if offered.
         // Metal (CAMetalLayer) only offers `PostMultiplied`, so it must be a fallback.
@@ -403,7 +441,7 @@ impl FemtoVGRenderer<WGPUBackend> {
         *self.graphics_backend.surface_config.borrow_mut() = Some(surface_config);
         *self.graphics_backend.surface.borrow_mut() = Some(surface);
 
-        let wgpu_renderer = femtovg::renderer::WGPURenderer::new(device, queue);
+        let wgpu_renderer = femtovg::renderer::WGPURenderer::new(device.clone(), queue.clone());
         let femtovg_canvas = femtovg::Canvas::new_with_text_context(
             wgpu_renderer,
             crate::font_cache::FONT_CACHE.with(|cache| cache.borrow().text_context.clone()),
@@ -411,6 +449,15 @@ impl FemtoVGRenderer<WGPUBackend> {
         .unwrap();
 
         let canvas = Rc::new(RefCell::new(femtovg_canvas));
+        *self.graphics_backend.backdrop_blur.borrow_mut() = Some(
+            crate::backdrop_blur::BackdropBlur::new(
+                device,
+                queue,
+                canvas.clone(),
+                size.width,
+                size.height,
+            ),
+        );
         self.reset_canvas(canvas);
     }
 }
