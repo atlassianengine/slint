@@ -155,3 +155,11 @@ impl<ImageType: Clone> BoxShadowCache<ImageType> {
         })
     }
 }
+
+impl<ImageType> BoxShadowCache<ImageType> {
+    /// Drop all cached shadow textures. Renderers call this while their graphics context is current
+    /// so GPU-backed image destructors can release resources safely.
+    pub fn clear_all(&self) {
+        self.0.borrow_mut().clear();
+    }
+}

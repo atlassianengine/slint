@@ -116,6 +116,7 @@ pub struct FemtoVGRenderer<B: GraphicsBackend> {
     graphics_cache: itemrenderer::ItemGraphicsCache<B::Renderer>,
     layer_cache: itemrenderer::LayerCache<B::Renderer>,
     texture_cache: RefCell<images::TextureCache<B::Renderer>>,
+    box_shadow_cache: itemrenderer::FemtovgBoxShadowCache<B::Renderer>,
     text_layout_cache: sharedparley::TextLayoutCache,
     rendering_metrics_collector: RefCell<Option<Rc<RenderingMetricsCollector>>>,
     rendering_first_time: Cell<bool>,
@@ -133,6 +134,7 @@ impl<B: GraphicsBackend> FemtoVGRenderer<B> {
             graphics_cache: Default::default(),
             layer_cache: Default::default(),
             texture_cache: Default::default(),
+            box_shadow_cache: Default::default(),
             text_layout_cache: Default::default(),
             rendering_metrics_collector: Default::default(),
             rendering_first_time: Cell::new(true),
@@ -254,6 +256,7 @@ impl<B: GraphicsBackend> FemtoVGRenderer<B> {
                     &self.graphics_cache,
                     &self.layer_cache,
                     &self.texture_cache,
+                    &self.box_shadow_cache,
                     &self.text_layout_cache,
                     window,
                     width.get(),
@@ -458,6 +461,7 @@ impl<B: GraphicsBackend> RendererSealed for FemtoVGRenderer<B> {
             .with_graphics_api(|_| {
                 self.graphics_cache.clear_all();
                 self.layer_cache.clear_all();
+                self.box_shadow_cache.clear_all();
                 self.texture_cache.borrow_mut().clear();
             })
             .ok();
@@ -542,6 +546,7 @@ impl<B: GraphicsBackend> FemtoVGRendererExt for FemtoVGRenderer<B> {
             graphics_cache: Default::default(),
             layer_cache: Default::default(),
             texture_cache: Default::default(),
+            box_shadow_cache: Default::default(),
             text_layout_cache: Default::default(),
             rendering_metrics_collector: Default::default(),
             rendering_first_time: Cell::new(true),
@@ -565,6 +570,7 @@ impl<B: GraphicsBackend> FemtoVGRendererExt for FemtoVGRenderer<B> {
 
             self.graphics_cache.clear_all();
             self.layer_cache.clear_all();
+            self.box_shadow_cache.clear_all();
             self.texture_cache.borrow_mut().clear();
         })?;
 
