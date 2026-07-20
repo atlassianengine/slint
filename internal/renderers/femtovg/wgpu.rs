@@ -410,7 +410,7 @@ impl FemtoVGRenderer<WGPUBackend> {
             .iter()
             .find(|f| **f == wgpu::TextureFormat::Rgba8Unorm)
             .copied()
-            .ok_or("FemtoVG-WGPU backdrop blur requires an Rgba8Unorm presentation surface")?;
+            .unwrap_or(surface_config.format);
         surface_config.format = swapchain_format;
         surface_config.usage |= wgpu::TextureUsages::COPY_DST;
 
