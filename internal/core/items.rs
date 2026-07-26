@@ -2198,15 +2198,31 @@ declare_item_vtable! {
     fn slint_get_TooltipAreaVTable() -> TooltipAreaVTable for TooltipArea
 }
 
+/// Expands to a builtin struct field's declared default value,
+/// or to the zero value of the field's type when no default is declared.
+/// Number literals for `Coord` fields are cast, because `Coord` is `f32` or `i32`
+/// depending on `cfg(slint_int_coord)`.
+macro_rules! builtin_struct_field_default {
+    (Coord, $default:expr) => {
+        ($default) as Coord
+    };
+    ($field_type:ident, $default:expr) => {
+        $default
+    };
+    ($field_type:ident) => {
+        ::core::default::Default::default()
+    };
+}
+
 macro_rules! declare_builtin_structs {
     ($(
         $(#[$struct_attr:meta])*
         $vis:vis struct $Name:ident {
-            $( $(#[$field_attr:meta])* $field:ident : $field_type:ty, )*
+            $( $(#[$field_attr:meta])* $field:ident : $field_type:ident $(= $field_default:expr)?, )*
         }
     )*) => {
         $(
-            #[derive(Clone, Debug, Default, PartialEq)]
+            #[derive(Clone, Debug, PartialEq)]
             #[repr(C)]
             $(#[$struct_attr])*
             pub struct $Name {
@@ -2215,11 +2231,39 @@ macro_rules! declare_builtin_structs {
                     pub $field : $field_type,
                 )*
             }
+
+            // Not derived, so that the fields take their declared default values
+            impl ::core::default::Default for $Name {
+                fn default() -> Self {
+                    Self {
+                        $($field: builtin_struct_field_default!($field_type $(, $field_default)?),)*
+                    }
+                }
+            }
         )*
     };
 }
 
 i_slint_common::for_each_builtin_structs!(declare_builtin_structs);
+
+#[test]
+fn builtin_struct_field_defaults() {
+    // Fields without a declared default value take the zero value of their type,
+    // like with derive(Default)
+    let table_column = TableColumn::default();
+    assert_eq!(table_column.sort_order, SortOrder::Unsorted);
+    assert_eq!(table_column.min_width, 0 as Coord);
+    assert_eq!(table_column.horizontal_stretch, 0.0);
+    assert_eq!(table_column.title, SharedString::default());
+    assert!(!KeyEvent::default().repeat);
+    assert_eq!(PointerEvent::default().touch_finger_id, 0);
+
+    // Fields with a declared default value take it
+    let hints = InputMethodHints::default();
+    assert_eq!(hints.capitalization, CapitalizationMode::Sentences);
+    assert!(hints.auto_correct);
+    assert!(hints.auto_complete);
+}
 
 #[cfg(feature = "ffi")]
 #[unsafe(no_mangle)]
@@ -2228,5 +2272,7 @@ pub unsafe extern "C" fn slint_item_absolute_position(
     self_index: u32,
 ) -> crate::lengths::LogicalPoint {
     let self_rc = ItemRc::new(self_component.clone(), self_index);
-    self_rc.map_to_window(Default::default())
+    // Map the item's own geometry origin through the ancestor transforms so the result is the
+    // item's absolute position, not its parent's.
+    self_rc.map_to_window(self_rc.geometry().origin)
 }

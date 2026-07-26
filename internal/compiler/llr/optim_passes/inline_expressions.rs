@@ -8,7 +8,7 @@
 
 use crate::expression_tree::{BuiltinFunction, ImageReference};
 use crate::langtype::Type;
-use crate::llr::{CompilationUnit, EvaluationContext, Expression};
+use crate::llr::{CompilationUnit, ContextMap, EvaluationContext, Expression};
 
 const PROPERTY_ACCESS_COST: isize = 1000;
 const ALLOC_COST: isize = 700;
@@ -194,15 +194,17 @@ fn inline_simple_expressions_in_expression(
     ctx: &EvaluationContext,
     counter: &mut usize,
 ) {
-    // Inline a call to a function that is called exactly once: move its body to
-    // the call site. Because it is the only call, the use counts of everything
-    // in the body are preserved by the move, so no adjustment is needed.
+    // Inline a call to a function that is called exactly once: move its body to the call site.
     if let Expression::FunctionCall { function, .. } = expr {
         let inline_target = ctx.function_info(function).and_then(|(f, map)| {
-            if f.use_count.get() != 1 || !body_is_inline_safe(&f.code.borrow()) {
+            if f.use_count.get() != 1 || !body_is_inline_safe(&f.code.borrow(), &map) {
                 return None;
             }
             f.use_count.set(0);
+            // count_property_use counts the body in the function's context; re-home the use
+            // counts to the call site, where a reference can resolve to a parent-set binding
+            // (e.g. `height: 100%`) that is invisible in the function and so under-counted.
+            adjust_use_count(&f.code.borrow(), &map.map_context(ctx), -1);
             // Take the body out so it isn't also inlined in place when
             // `for_each_expression` reaches it, which would double-count uses.
             let body = f.code.replace(Expression::CodeBlock(Vec::new()));
@@ -217,6 +219,8 @@ fn inline_simple_expressions_in_expression(
             let uid = *counter;
             *counter += 1;
             map.map_expression(&mut body);
+            // Re-count in the call-site context (see above).
+            adjust_use_count(&body, ctx, 1);
             substitute_function_parameters(&mut body, uid, &arg_types);
             *expr = if arguments.is_empty() {
                 body
@@ -282,26 +286,28 @@ fn inline_simple_expressions_in_expression(
     expr.visit_mut(|e| inline_simple_expressions_in_expression(e, ctx, counter));
 }
 
-/// Whether a function body can be moved to its single call site.
+/// Whether a function body can be moved to its single call site through `map`.
 ///
-/// Unsafe when it shows or closes a popup — the popup state lives in the
-/// declaring component and is reached by an upward `parent_level`, so a caller
-/// in an ancestor component cannot reach it — or reads a parameter more than
-/// once: a real call clones each read (`args.N.clone()`), but the inlined body
-/// reads a local that a second read would move.
-fn body_is_inline_safe(exp: &Expression) -> bool {
+/// Unsafe when it references state that only exists in the declaring component
+/// and cannot be remapped by `ContextMap::map_expression`:
+/// the menu item tree of a popup menu, and `UpdateTimers`,
+/// refer to the enclosing component implicitly,
+/// so they can only move within the same component.
+/// Also unsafe when it reads a parameter more than once:
+/// a real call clones each read (`args.N.clone()`),
+/// but the inlined body reads a local that a second read would move.
+fn body_is_inline_safe(exp: &Expression, map: &ContextMap) -> bool {
     let mut params = std::collections::HashSet::new();
     let mut safe = true;
     exp.visit_recursive(&mut |e| match e {
         Expression::FunctionParameterReference { index } => safe &= params.insert(*index),
         Expression::BuiltinFunctionCall { function, .. } => {
-            safe &= !matches!(
-                function,
-                BuiltinFunction::ShowPopupWindow
-                    | BuiltinFunction::ClosePopupWindow
-                    | BuiltinFunction::ShowPopupMenu
-                    | BuiltinFunction::ShowPopupMenuInternal
-            )
+            safe &= match function {
+                BuiltinFunction::ShowPopupMenu
+                | BuiltinFunction::ShowPopupMenuInternal
+                | BuiltinFunction::UpdateTimers => matches!(map, ContextMap::Identity),
+                _ => true,
+            }
         }
         _ => {}
     });

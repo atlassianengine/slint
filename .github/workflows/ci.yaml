@@ -49,6 +49,7 @@ jobs:
       outputs:
         slint: ${{ inputs.full || steps.filter.outputs.slint == 'true' }}
         framework: ${{ inputs.full || steps.filter.outputs.framework == 'true' }}
+        integration: ${{ inputs.full || steps.filter.outputs.integration == 'true' }}
         figma_inspector: ${{ inputs.full || steps.filter.outputs.figma_inspector == 'true' }}
         material_components: ${{ inputs.full || steps.filter.outputs.material_components == 'true' }}
         internal: ${{ inputs.full || steps.filter.outputs.internal == 'true' }}
@@ -81,7 +82,7 @@ jobs:
 
     build_and_test:
         needs: files-changed
-        if: ${{ needs.files-changed.outputs.slint == 'true' || needs.files-changed.outputs.examples == 'true' }}
+        if: ${{ needs.files-changed.outputs.slint == 'true' || needs.files-changed.outputs.examples == 'true' || needs.files-changed.outputs.tests == 'true' }}
         strategy:
             matrix:
                 include:
@@ -101,7 +102,7 @@ jobs:
             extra_args: ${{ matrix.extra_args }}
             run_qt: ${{ needs.files-changed.outputs.qt == 'true' }}
             test_workspace: ${{ needs.files-changed.outputs.slint == 'true' }}
-            test_integration: ${{ needs.files-changed.outputs.framework == 'true' || needs.files-changed.outputs.tests == 'true' }}
+            test_integration: ${{ needs.files-changed.outputs.integration == 'true' || needs.files-changed.outputs.tests == 'true' }}
             build_examples: ${{ needs.files-changed.outputs.framework == 'true' || needs.files-changed.outputs.examples == 'true' }}
             save_if: ${{ github.ref == 'refs/heads/master' }}
 
@@ -204,8 +205,8 @@ jobs:
             - name: Install 32-bit build dependencies
               run: |
                   sudo dpkg --add-architecture i386
-                  sudo apt-get update
-                  sudo apt-get install -y gcc-multilib g++-multilib libfontconfig-dev:i386
+                  sudo timeout 300 apt-get update
+                  sudo timeout 300 apt-get install -y gcc-multilib g++-multilib libfontconfig-dev:i386
             - uses: ./.github/actions/setup-rust
               with:
                   target: i686-unknown-linux-gnu
@@ -332,6 +333,7 @@ jobs:
             - uses: Swatinem/rust-cache@v2
               with:
                 key: "vsce_1" # increment this to bust the cache if needed
+                save-if: ${{ github.ref == 'refs/heads/master' }}
             - uses: ./.github/actions/install-linux-dependencies
             - uses: actions/setup-node@v7
               with:
@@ -482,10 +484,10 @@ jobs:
         steps:
           - id: set
             run: |
-              # v5.2 always runs; v5.5 only in full mode
+              # v5.2 always runs; v6.0 only in full mode (home-automation needs IDF 6)
               entries='[{"esp-idf-version":"release-v5.2","idf-extra-args":""}]'
               if [ "${{ inputs.full }}" = "true" ]; then
-                entries='[{"esp-idf-version":"release-v5.2","idf-extra-args":""},{"esp-idf-version":"release-v5.5","idf-extra-args":"-D SLINT_ESP_LOCAL_EXAMPLE=OFF"}]'
+                entries='[{"esp-idf-version":"release-v5.2","idf-extra-args":""},{"esp-idf-version":"release-v6.0","idf-extra-args":"-D SLINT_ESP_LOCAL_EXAMPLE=OFF"}]'
               fi
               echo "matrix={\"include\":$entries}" >> "$GITHUB_OUTPUT"
 
@@ -504,7 +506,7 @@ jobs:
                   cd $IDF_PYTHON_ENV_PATH
                   bin/pip install pydantic==2.11.10
             - uses: actions/checkout@v7
-            - run: apt-get update && apt-get install -y libfontconfig1-dev
+            - run: timeout 300 apt-get update && timeout 300 apt-get install -y libfontconfig1-dev
             - uses: dtolnay/rust-toolchain@stable
             - uses: esp-rs/xtensa-toolchain@v1.7
               with:
@@ -512,6 +514,8 @@ jobs:
                   buildtargets: esp32
                   ldproxy: false
             - uses: Swatinem/rust-cache@v2
+              with:
+                save-if: ${{ github.ref == 'refs/heads/master' }}
             - name: Build and Test Printer demo
               shell: bash
               working-directory: demos/printerdemo_mcu/esp-idf
@@ -526,8 +530,8 @@ jobs:
                   . ${IDF_PATH}/export.sh
                   idf.py -D SLINT_ESP_LOCAL_EXAMPLE=OFF build
             - name: Build Home Automation demo (ESP32-P4)
-              # The demo requires ESP-IDF >= 5.4, so skip the v5.2 matrix entry
-              if: ${{ inputs.full && matrix.esp-idf-version != 'release-v5.2' }}
+              # The demo requires ESP-IDF 6, so it only runs on the release-v6.0 entry
+              if: ${{ inputs.full && matrix.esp-idf-version == 'release-v6.0' }}
               shell: bash
               working-directory: demos/home-automation/esp-idf
               run: |
@@ -705,9 +709,9 @@ jobs:
             - uses: actions/checkout@v7
             - uses: ./.github/actions/install-linux-dependencies
             - name: Install ffmpeg and alsa (Linux)
-              run: sudo apt-get install clang libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libavdevice-dev libasound2-dev pkg-config
+              run: sudo timeout 300 apt-get install clang libavcodec-dev libavformat-dev libavutil-dev libavfilter-dev libavdevice-dev libasound2-dev pkg-config
             - name: Install gstreamer and libunwind (Linux)
-              run: sudo apt-get install libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+              run: sudo timeout 300 apt-get install libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
             - uses: ./.github/actions/setup-rust
             - name: Run Clippy
               run: ./scripts/run_clippy.sh
@@ -758,7 +762,7 @@ jobs:
             # provides the unversioned tool names. nasm assembles aws-lc-sys' x86 assembly
             # (pulled in via rustls/aws-lc-rs, e.g. by the servo example and live-preview).
             - name: Install LLVM tools and nasm
-              run: sudo apt-get update && sudo apt-get install -y llvm nasm
+              run: sudo timeout 300 apt-get update && sudo timeout 300 apt-get install -y llvm nasm
             - uses: baptiste0928/cargo-install@v3
               with:
                   crate: cargo-xwin
@@ -826,7 +830,7 @@ jobs:
                   wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
                   chmod +x /tmp/llvm.sh
                   sudo /tmp/llvm.sh 20
-                  sudo apt-get install --assume-yes libclang-20-dev
+                  sudo timeout 300 apt-get install --assume-yes libclang-20-dev
                   rm -f /tmp/llvm.sh
             - name: C++ Build
               run: |
@@ -1053,7 +1057,7 @@ jobs:
         steps:
             - uses: actions/checkout@v7
             - name: Install system dependencies
-              run: sudo apt-get update && sudo apt-get install -y libfontconfig-dev
+              run: sudo timeout 300 apt-get update && sudo timeout 300 apt-get install -y libfontconfig-dev
             - uses: ./.github/actions/setup-rust
               with:
                   toolchain: nightly

@@ -1,7 +1,7 @@
 // Copyright © SixtyFPS GmbH <info@slint.dev>
 // SPDX-License-Identifier: GPL-3.0-only OR LicenseRef-Slint-Royalty-free-2.0 OR LicenseRef-Slint-Software-3.0
 
-// cSpell: ignore theproperty underscoresanddashespreserved xreadonly
+// cSpell: ignore theproperty underscoresanddashespreserved xreadonly noregress
 use crate::dynamic_item_tree::{ErasedItemTreeBox, WindowOptions};
 use i_slint_compiler::langtype::Type as LangType;
 use i_slint_core::PathData;
@@ -309,7 +309,7 @@ macro_rules! declare_value_struct_conversion {
     ($(
         $(#[$struct_attr:meta])*
         $vis:vis struct $Name:ident {
-            $( $(#[$field_attr:meta])* $field:ident : $field_type:ty, )*
+            $( $(#[$field_attr:meta])* $field:ident : $field_type:ty $(= $field_default:expr)?, )*
         }
     )*) => {
         $(
@@ -329,6 +329,8 @@ macro_rules! declare_value_struct_conversion {
                             type Ty = $Name;
                             #[allow(unused)]
                             let mut res: Ty = Ty::default();
+                            // Every field is required and overwritten, so declared field
+                            // defaults do not apply to this conversion
                             $(res.$field = x.get_field(stringify!($field)).ok_or(())?.clone().try_into().map_err(|_|())?;)*
                             Ok(res)
                         }
@@ -1720,6 +1722,14 @@ impl ComponentInstance {
         offset: u32,
     ) -> Vec<(i_slint_compiler::object_tree::ElementRc, usize)> {
         crate::highlight::element_node_at_source_code_position(&self.inner, path, offset)
+    }
+
+    /// Set a callback triggered by `Expression::DebugHook``.
+    #[cfg(feature = "internal")]
+    pub fn set_debug_hook_callback(&self, callback: Option<crate::debug_hook::DebugHookCallback>) {
+        generativity::make_guard!(guard);
+        let comp = self.inner.unerase(guard);
+        crate::debug_hook::set_debug_hook_callback(comp, callback);
     }
 }
 

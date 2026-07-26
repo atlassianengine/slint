@@ -16,7 +16,7 @@ impl Mapping {
             LocalMemberIndex::Property(p) => self.prop_mapping[*p].is_some(),
             LocalMemberIndex::Callback(c) => self.callback_mapping[*c].is_some(),
             LocalMemberIndex::Function(f) => self.function_mapping[*f].is_some(),
-            LocalMemberIndex::Native { .. } => true,
+            LocalMemberIndex::Native { .. } | LocalMemberIndex::Timer(_) => true,
         }
     }
 }
@@ -345,8 +345,12 @@ mod visitor {
 
             if let Some(listview) = listview {
                 visit_member_reference(&mut listview.viewport_y, &scope, state, visitor);
-                visit_member_reference(&mut listview.viewport_height, &scope, state, visitor);
-                visit_member_reference(&mut listview.viewport_width, &scope, state, visitor);
+                if let Some(viewport_height) = &mut listview.viewport_height {
+                    visit_member_reference(viewport_height, &scope, state, visitor);
+                }
+                if let Some(viewport_width) = &mut listview.viewport_width {
+                    visit_member_reference(viewport_width, &scope, state, visitor);
+                }
                 visit_member_reference(&mut listview.listview_width, &scope, state, visitor);
                 visit_member_reference(&mut listview.listview_height, &scope, state, visitor);
 
@@ -605,7 +609,7 @@ mod visitor {
             LocalMemberIndex::Callback(c) => {
                 visitor.visit_callback_idx(c, scope, state);
             }
-            LocalMemberIndex::Native { .. } => {}
+            LocalMemberIndex::Native { .. } | LocalMemberIndex::Timer(_) => {}
         }
     }
 }

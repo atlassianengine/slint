@@ -953,6 +953,44 @@ impl<'a, T> EvaluationContext<'a, T> {
         }
     }
 
+    /// Resolve the component that a [`MemberReference::Relative`]
+    /// with the given `parent_level` and `sub_component_path` refers to,
+    /// and call `f` with a [`ParentScope`] for it,
+    /// suitable as the parent scope of e.g. a popup declared there.
+    /// Continuation style because the parent chain of a descended sub-component
+    /// borrows from the stack.
+    pub fn with_reference_scope<R>(
+        &self,
+        parent_level: usize,
+        sub_component_path: &[SubComponentInstanceIdx],
+        f: impl FnOnce(ParentScope<'_>) -> R,
+    ) -> R {
+        fn descend<R>(
+            cu: &super::CompilationUnit,
+            sc: SubComponentIdx,
+            parent: Option<&ParentScope<'_>>,
+            path: &[SubComponentInstanceIdx],
+            f: impl FnOnce(ParentScope<'_>) -> R,
+        ) -> R {
+            if let [first, rest @ ..] = path {
+                let ps = ParentScope { sub_component: sc, repeater_index: None, parent };
+                let child = cu.sub_components[sc].sub_components[*first].ty;
+                descend(cu, child, Some(&ps), rest, f)
+            } else {
+                f(ParentScope { sub_component: sc, repeater_index: None, parent })
+            }
+        }
+        let EvaluationScope::SubComponent(mut sc, mut parent) = self.current_scope else {
+            panic!("not in a sub-component scope")
+        };
+        for _ in 0..parent_level {
+            let p = parent.expect("invalid parent reference");
+            sc = p.sub_component;
+            parent = p.parent;
+        }
+        descend(self.compilation_unit, sc, parent, sub_component_path, f)
+    }
+
     pub fn current_sub_component(&self) -> Option<&super::SubComponent> {
         let EvaluationScope::SubComponent(i, _) = self.current_scope else { return None };
         self.compilation_unit.sub_components.get(i)
@@ -985,7 +1023,7 @@ impl<'a, T> EvaluationContext<'a, T> {
                 LocalMemberIndex::Property(property_idx) => &g.properties[*property_idx].ty,
                 LocalMemberIndex::Function(function_idx) => &g.functions[*function_idx].ret_ty,
                 LocalMemberIndex::Callback(callback_idx) => &g.callbacks[*callback_idx].ty,
-                LocalMemberIndex::Native { .. } => unreachable!(),
+                LocalMemberIndex::Native { .. } | LocalMemberIndex::Timer(_) => unreachable!(),
             };
         }
 
@@ -998,6 +1036,7 @@ impl<'a, T> EvaluationContext<'a, T> {
             LocalMemberIndex::Property(property_index) => &sc.properties[*property_index].ty,
             LocalMemberIndex::Function(function_index) => &sc.functions[*function_index].ret_ty,
             LocalMemberIndex::Callback(callback_index) => &sc.callbacks[*callback_index].ty,
+            LocalMemberIndex::Timer(_) => unreachable!("a timer reference has no type"),
             LocalMemberIndex::Native { item_index, prop_name, .. } => {
                 if prop_name == "elements" {
                     // The `Path::elements` property is not in the NativeClass
@@ -1024,7 +1063,7 @@ impl<T> TypeResolutionContext for EvaluationContext<'_, T> {
                     LocalMemberIndex::Property(property_idx) => &g.properties[*property_idx].ty,
                     LocalMemberIndex::Function(function_idx) => &g.functions[*function_idx].ret_ty,
                     LocalMemberIndex::Callback(callback_idx) => &g.callbacks[*callback_idx].ty,
-                    LocalMemberIndex::Native { .. } => unreachable!(),
+                    LocalMemberIndex::Native { .. } | LocalMemberIndex::Timer(_) => unreachable!(),
                 }
             }
         }

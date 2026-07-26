@@ -2497,19 +2497,31 @@ fn generate_sub_component(
 
         if let Some(listview) = &repeated.listview {
             let vp_y = access_member(&listview.viewport_y, &ctx).unwrap();
-            let vp_h = access_member(&listview.viewport_height, &ctx).unwrap();
-            let lv_h = access_member(&listview.listview_height, &ctx).unwrap();
-            let vp_w = access_member(&listview.viewport_width, &ctx).unwrap();
             let lv_w = access_member(&listview.listview_width, &ctx).unwrap();
+            let lv_h = access_member(&listview.listview_height, &ctx).unwrap();
+            let vp_w = listview.viewport_width.as_ref().map_or_else(
+                || "nullptr".to_string(),
+                |w| {
+                    let w = access_member(w, &ctx).unwrap();
+                    format!("&{w}")
+                },
+            );
+            let vp_h = listview.viewport_height.as_ref().map_or_else(
+                || "nullptr".to_string(),
+                |h| {
+                    let h = access_member(h, &ctx).unwrap();
+                    format!("&{h}")
+                },
+            );
 
             children_visitor_cases.push(format!(
                 "\n        case {idx}: {{
-                self->{repeater_id}.track_changes_listview(&{vp_w}, &{vp_h}, &{vp_y}, {lv_w}.get(), &{lv_h});
+                self->{repeater_id}.track_changes_listview({vp_w}, {vp_h}, &{vp_y}, {lv_w}.get(), &{lv_h});
                 return self->{repeater_id}.visit(order, visitor);
             }}",
             ));
             ensure_instantiated_stmts.push(format!(
-                "_changed |= self->{repeater_id}.ensure_updated_listview(self, &{vp_w}, &{vp_h}, &{vp_y}, {lv_w}.get(), {lv_h}.get());"
+                "_changed |= self->{repeater_id}.ensure_updated_listview(self, {vp_w}, {vp_h}, &{vp_y}, {lv_w}.get(), {lv_h}.get());"
             ));
         } else {
             children_visitor_cases.push(format!(
@@ -3673,6 +3685,8 @@ fn access_member(reference: &llr::MemberReference, ctx: &EvaluationContext) -> M
                         let function_name = ident(&sub_component.functions[*function_index].name);
                         path.with_member(format!("->{compo_path}fn_{function_name}"))
                     }
+                    llr::LocalMemberIndex::Timer(timer_index) => path
+                        .with_member(format!("->{compo_path}timer{}", usize::from(*timer_index))),
                     llr::LocalMemberIndex::Native { item_index, prop_name, .. } => {
                         let item_name = field_name(&sub_component.items[*item_index].name);
                         if prop_name.is_empty()
@@ -5144,24 +5158,31 @@ fn compile_builtin_function_call(
             format!("{}.text_input_focused()", access_window_field(ctx))
         }
         BuiltinFunction::ShowPopupWindow => {
-            // A trailing argument may carry the synthesized `is-open` property reference, resolved in
-            // this call's own frame (see lower_show_popup_window).
-            if let [llr::Expression::NumberLiteral(popup_index), close_policy, llr::Expression::PropertyReference(parent_ref), is_open_args @ ..] =
+            // `owner_ref` is the popup's declaring component (its `popup_id` and scope); `anchor_ref`
+            // is the parent item for positioning. A trailing argument may carry the synthesized
+            // `is-open` property reference, resolved in this call's own frame (see
+            // lower_show_popup_window).
+            if let [llr::Expression::NumberLiteral(popup_index), close_policy, llr::Expression::PropertyReference(owner_ref), llr::Expression::PropertyReference(anchor_ref), is_open_args @ ..] =
                 arguments
             {
                 let mut component_access = MemberAccess::Direct("self".into());
-                let llr::MemberReference::Relative { parent_level, .. } = parent_ref else {unreachable!()};
+                let llr::MemberReference::Relative { parent_level, local_reference } = owner_ref else {unreachable!()};
                 for _ in 0..*parent_level {
                     component_access = component_access.and_then(|x| format!("{x}->parent.lock()"));
                 }
 
                 let window = access_window_field(ctx);
-                let current_sub_component = &ctx.compilation_unit.sub_components[ctx.parent_sub_component_idx(*parent_level).unwrap()];
-                let popup = &current_sub_component.popup_windows[*popup_index as usize];
+                let (compo_path, _) = follow_sub_component_path(
+                    ctx.compilation_unit,
+                    ctx.parent_sub_component_idx(*parent_level).unwrap(),
+                    &local_reference.sub_component_path,
+                );
+                let parent_component = access_item_rc(anchor_ref, ctx);
+                ctx.with_reference_scope(*parent_level, &local_reference.sub_component_path, |parent_ctx| {
+                let popup = &ctx.compilation_unit.sub_components[parent_ctx.sub_component]
+                    .popup_windows[*popup_index as usize];
                 let popup_window_id =
                     ident(&ctx.compilation_unit.sub_components[popup.item_tree.root].name);
-                let parent_component = access_item_rc(parent_ref, ctx);
-                let parent_ctx = ParentScope::new(ctx, None);
                 let popup_ctx = EvaluationContext::new_sub_component(
                     ctx.compilation_unit,
                     popup.item_tree.root,
@@ -5195,17 +5216,25 @@ fn compile_builtin_function_call(
                     }
                     _ => "[](bool) {}".to_string(),
                 };
-                component_access.then(|component_access| format!(
-                    // Use a block statement to create own globals and popup instance
-                    "{window}.close_popup({component_access}->popup_id_{popup_index}); \
-                    {component_access}->popup_id_{popup_index} =  \
-                        {window}.template show_popup<{popup_window_id}>(&*({component_access}),  \
-                                                                        [=](auto self) {{ return {position}; }},  \
-                                                                        {close_policy},  \
-                                                                        {{ {parent_component} }},  \
-                                                                        {window_kind},  \
-                                                                        {is_open_setter})"
-                ))
+                component_access.then(|component_access| {
+                    let compo_ptr = if compo_path.is_empty() {
+                        format!("&*({component_access})")
+                    } else {
+                        format!("&({component_access}->{})", compo_path.trim_end_matches('.'))
+                    };
+                    format!(
+                        // Use a block statement to create own globals and popup instance
+                        "{window}.close_popup({component_access}->{compo_path}popup_id_{popup_index}); \
+                        {component_access}->{compo_path}popup_id_{popup_index} =  \
+                            {window}.template show_popup<{popup_window_id}>({compo_ptr},  \
+                                                                            [=](auto self) {{ return {position}; }},  \
+                                                                            {close_policy},  \
+                                                                            {{ {parent_component} }},  \
+                                                                            {window_kind},  \
+                                                                            {is_open_setter})"
+                    )
+                })
+                })
             } else {
                 panic!("internal error: invalid args to ShowPopupWindow {arguments:?}")
             }
@@ -5213,12 +5242,17 @@ fn compile_builtin_function_call(
         BuiltinFunction::ClosePopupWindow => {
             if let [llr::Expression::NumberLiteral(popup_index), llr::Expression::PropertyReference(parent_ref)] = arguments {
                 let mut component_access = MemberAccess::Direct("self".into());
-                let llr::MemberReference::Relative { parent_level, .. } = parent_ref else {unreachable!()};
+                let llr::MemberReference::Relative { parent_level, local_reference } = parent_ref else {unreachable!()};
                 for _ in 0..*parent_level {
                     component_access = component_access.and_then(|x| format!("{x}->parent.lock()"));
                 }
+                let (compo_path, _) = follow_sub_component_path(
+                    ctx.compilation_unit,
+                    ctx.parent_sub_component_idx(*parent_level).unwrap(),
+                    &local_reference.sub_component_path,
+                );
 
-                component_access.then(|component_access| format!("{component_access}->globals->window().window_handle().close_popup({component_access}->popup_id_{popup_index})"))
+                component_access.then(|component_access| format!("{component_access}->{compo_path}globals->window().window_handle().close_popup({component_access}->{compo_path}popup_id_{popup_index})"))
             } else {
                 panic!("internal error: invalid args to ClosePopupWindow {arguments:?}")
             }
@@ -5326,7 +5360,9 @@ fn compile_builtin_function_call(
             if let [llr::Expression::PropertyReference(pr)] = arguments {
                 let item_rc = access_item_rc(pr, ctx);
                 let window = access_window_field(ctx);
-                format!("slint_cpp_text_item_fontmetrics(&{window}.handle(), &{item_rc})")
+                format!(
+                    "[&]{{ slint::cbindgen_private::FontMetrics fm; slint_cpp_text_item_fontmetrics(&{window}.handle(), &{item_rc}, &fm); return fm; }}()"
+                )
             } else {
                 panic!("internal error: invalid args to ItemFontMetrics {arguments:?}")
             }
@@ -5399,8 +5435,9 @@ fn compile_builtin_function_call(
         BuiltinFunction::StartTimer => unreachable!(),
         BuiltinFunction::StopTimer => unreachable!(),
         BuiltinFunction::RestartTimer => {
-            if let [llr::Expression::NumberLiteral(timer_index)] = arguments {
-                format!("const_cast<slint::Timer&>(self->timer{}).restart()", timer_index)
+            if let [llr::Expression::PropertyReference(pr)] = arguments {
+                access_member(pr, ctx)
+                    .then(|x| format!("const_cast<slint::Timer&>({x}).restart()"))
             } else {
                 panic!("internal error: invalid args to RestartTimer {arguments:?}")
             }

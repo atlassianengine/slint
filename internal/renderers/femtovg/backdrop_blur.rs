@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use bytemuck::{Pod, Zeroable};
 use femtovg::{ImageFlags, ImageId, ImageInfo, Paint, PixelFormat};
-use wgpu_29 as wgpu;
+use wgpu_30 as wgpu;
 
 use crate::itemrenderer::{BackdropBlurCallback, CanvasRc};
 

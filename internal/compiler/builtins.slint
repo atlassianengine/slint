@@ -35,13 +35,15 @@
 
 component Rectangle inherits Empty {
     /// Blurs the already-painted content behind this rectangle. The value is clamped to the
-    /// range `0px` to `32px`; zero and negative values disable the effect. In Slint 1.17.1,
-    /// native backdrop blur is implemented by the FemtoVG-WGPU renderer. Other renderers retain
+    /// range `0px` to `32px`; zero and negative values disable the effect.
+    /// Native backdrop blur is implemented by the FemtoVG-WGPU renderer. Other renderers retain
     /// the rectangle's normal background and border without applying the blur.
     /// \default 0px
     //-shadowable
     in property <length> background-blur;
-    /// The background brush of this `Rectangle`.
+    /// The background brush of this `Rectangle`, filling its geometry. \{#sls.ref.rectangle.background}
+    ///
+    /// Without a `background` and without a border, the `Rectangle` paints nothing. \{#sls.ref.rectangle.empty}
     ///
     /// ```slint imageAlt="rectangle background" width="200" height="400"
     /// property <brush> rainbow-gradient: @linear-gradient(40deg, rgba(255, 0, 0, 1) 0%, rgba(255, 154, 0, 1) 10%, rgba(208, 222, 33, 1) 20%,rgba(79, 220, 74, 1) 30%, rgba(63, 218, 216, 1) 40%, rgba(47, 201, 226, 1) 50%, rgba(28, 127, 238, 1) 60%, rgba(95, 21, 242, 1) 70%, rgba(186, 12, 248, 1) 80%, rgba(251, 7, 217, 1) 90%, rgba(255, 0, 0, 1) 100%);
@@ -151,9 +153,11 @@ component BasicBorderRectangle inherits Rectangle {
 }
 
 /// By default, a `Rectangle` is just an empty item that shows nothing. By setting a color or configuring a border,
-/// it's then possible to draw a rectangle on the screen.
+/// it's then possible to draw a rectangle on the screen. \{#sls.meta.rectangle.purpose}
 ///
+/// <NotInSC>
 /// When not part of a layout, its width and height default to 100% of the parent element.
+/// </NotInSC>
 ///
 /// ```slint playground imageAlt="rectangle example"
 /// export component ExampleRectangle inherits Window {
@@ -1543,7 +1547,8 @@ component WindowItem {
     /// Whether the window is maximized. Setting this to true maximizes the window.
     //-shadowable
     in-out property <bool> maximized;
-    /// The background brush of the `Window`.
+    /// The background brush of the `Window`. It is painted first, covering the whole window. \{#sls.ref.window.background}
+    /// \sc
     /// \default depends on the style
     in property <brush> background; // StyleMetrics.background  set in apply_default_properties_from_style
     in property <brush> color <=> background;
@@ -1586,13 +1591,17 @@ component WindowItem {
     }
 }
 
-/// `Window` is the root of the tree of elements that are visible on the screen.
+/// `Window` is the root of the tree of elements that are visible on the screen. \{#sls.meta.window.purpose}
 ///
+/// <NotInSC>
 /// The `Window` geometry will be restricted by its layout constraints: Setting the `width` will result in a fixed width,
 /// and the window manager will respect the `min-width` and `max-width` so the window can't be resized bigger
 /// or smaller. The initial width can be controlled with the `preferred-width` property. The same applies to the `Window`s height.
+/// </NotInSC>
 ///
+/// <NotInSC>
 /// Use the <Link type="MenuBar" /> element to declare a menu bar for the window.
+/// </NotInSC>
 /// \group:window
 /// \sc
 export component Window inherits WindowItem {
@@ -1745,6 +1754,9 @@ export component TextInput {
     ///  Use this to configure `TextInput` for editing special input, such as password fields.
     /// \default text
     in property <InputType> input-type;
+    /// Hints for the platform's input method (such as a soft keyboard), for example to configure auto-capitalization.
+    /// The input method may take these hints into account, but might also ignore them.
+    in property <InputMethodHints> input-method-hints;
     // Internal, undocumented property, only exposed for tests.
     out property <int> cursor-position_byte-offset;
     // Internal, undocumented property, only exposed for tests.
@@ -2381,42 +2393,35 @@ export component Path {
     //! If non-zero, the path will be scaled to fit into the specified height.
     //! </SlintProperty>
     //!
+    in property <string> commands;  // 'fake' hardcoded in typeregister.rs
+    /// Defines how the path's view box is scaled to fit the element's width and height.
+    /// If no view box is defined, the implicit bounding rectangle is used.
+    /// \default contain
+    in property <ImageFit> fit: contain;
+    /// By default, when a path has a view box defined and the elements render
+    /// outside of it, they are still rendered. When this property is set to `true`, then rendering will be
+    /// clipped at the boundaries of the view box.
+    /// \default false
+    in property <bool> clip;
+    ///  By default, the fill and stroke of a path is rendered with anti-aliasing, for best quality. Some GPUs
+    ///  have performance issues when rendering with anti-aliasing and animation. Setting the value to `false`
+    ///  might improve the frame-rate at the expense of a smoother looking path.
+    /// \default true
+    in property <bool> anti-alias: true;
     //! ## Viewbox Properties
-    //! ### viewbox-x
-    //! <SlintProperty propName="viewbox-x" typeName="float"/>
-    //!
-    //! ### viewbox-y
-    //! <SlintProperty propName="viewbox-y" typeName="float"/>
-    //!
-    //! ### viewbox-width
-    //! <SlintProperty propName="viewbox-width" typeName="float"/>
-    //!
-    //! ### viewbox-height
-    //! <SlintProperty propName="viewbox-height" typeName="float"/>
     //!
     //! These four properties allow defining the position and size of the viewport of the path in path coordinates.
     //!
     //! If the `viewbox-width` or `viewbox-height` is less or equal than zero, the viewbox properties are
     //! ignored and instead the bounding rectangle of all path elements is used to define the view port.
-    in property <string> commands;  // 'fake' hardcoded in typeregister.rs
+    ///
     in property <float> viewbox-x;
+    ///
     in property <float> viewbox-y;
+    ///
     in property <float> viewbox-width;
+    ///
     in property <float> viewbox-height;
-    /// Defines how the path's view box is scaled to fit the element's width and height.
-    /// If no view box is defined, the implicit bounding rectangle is used.
-    /// \default contain
-    in property <ImageFit> fit: contain;
-    /// \default false
-    in property <bool> clip;
-    //!  By default, when a path has a view box defined and the elements render
-    //! outside of it, they are still rendered. When this property is set to `true`, then rendering will be
-    //! clipped at the boundaries of the view box.
-    /// \default true
-    in property <bool> anti-alias: true;
-    //!  By default, the fill and stroke of a path is rendered with anti-aliasing, for best quality. Some GPUs
-    //!  have performance issues when rendering with anti-aliasing and animation. Setting the value to `false`
-    //!  might improve the frame-rate at the expense of a smoother looking path.
     //!
     //! ## Path Using SVG Commands
     //!

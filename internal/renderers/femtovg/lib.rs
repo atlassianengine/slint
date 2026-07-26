@@ -37,13 +37,13 @@ use self::itemrenderer::CanvasRc;
 mod font_cache;
 mod images;
 mod itemrenderer;
-#[cfg(feature = "wgpu-29")]
+#[cfg(feature = "wgpu-30")]
 mod backdrop_blur;
 #[cfg(feature = "opengl")]
 pub mod opengl;
-#[cfg(feature = "wgpu-29")]
+#[cfg(feature = "wgpu-30")]
 pub mod wgpu;
-#[cfg(feature = "wgpu-29")]
+#[cfg(feature = "wgpu-30")]
 pub use wgpu::FemtoVGWGPURenderer;
 
 pub trait WindowSurface<R: femtovg::Renderer> {
@@ -125,7 +125,7 @@ pub struct FemtoVGRenderer<B: GraphicsBackend> {
 }
 
 impl<B: GraphicsBackend> FemtoVGRenderer<B> {
-    #[cfg(feature = "wgpu-29")]
+    #[cfg(feature = "wgpu-30")]
     pub(crate) fn new_internal(graphics_backend: B) -> Self {
         Self {
             maybe_window_adapter: Default::default(),
@@ -249,6 +249,7 @@ impl<B: GraphicsBackend> FemtoVGRenderer<B> {
 
                 self.graphics_cache.clear_cache_if_scale_factor_changed(window);
                 self.layer_cache.clear_cache_if_scale_factor_changed(window);
+                self.box_shadow_cache.clear_cache_if_scale_factor_changed(window);
                 self.text_layout_cache.clear_cache_if_scale_factor_changed(window);
 
                 let mut item_renderer = self::itemrenderer::GLItemRenderer::new(
@@ -336,7 +337,7 @@ impl<B: GraphicsBackend> FemtoVGRenderer<B> {
         })
     }
 
-    #[cfg(any(feature = "wgpu-29", feature = "opengl"))]
+    #[cfg(any(feature = "wgpu-30", feature = "opengl"))]
     pub(crate) fn reset_canvas(&self, canvas: CanvasRc<B::Renderer>) {
         *self.canvas.borrow_mut() = canvas.into();
         self.rendering_first_time.set(true);
@@ -361,6 +362,14 @@ impl<B: GraphicsBackend> RendererSealed for FemtoVGRenderer<B> {
             Some(&self.text_layout_cache),
         )
         .unwrap_or_default()
+    }
+
+    fn text_content_widths(
+        &self,
+        text_item: Pin<&dyn i_slint_core::item_rendering::RenderString>,
+        item_rc: &ItemRc,
+    ) -> Option<i_slint_core::renderer::ContentWidths> {
+        sharedparley::text_content_widths(self, text_item, item_rc)
     }
 
     fn char_size(
@@ -463,6 +472,7 @@ impl<B: GraphicsBackend> RendererSealed for FemtoVGRenderer<B> {
                 self.layer_cache.clear_all();
                 self.box_shadow_cache.clear_all();
                 self.texture_cache.borrow_mut().clear();
+                self.box_shadow_cache.clear();
             })
             .ok();
     }
@@ -572,6 +582,7 @@ impl<B: GraphicsBackend> FemtoVGRendererExt for FemtoVGRenderer<B> {
             self.layer_cache.clear_all();
             self.box_shadow_cache.clear_all();
             self.texture_cache.borrow_mut().clear();
+            self.box_shadow_cache.clear();
         })?;
 
         self.text_layout_cache.clear_all();

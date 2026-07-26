@@ -725,7 +725,19 @@ pub fn eval_expression(expression: &Expression, local_context: &mut EvalLocalCon
         }
         Expression::EmptyComponentFactory => Value::ComponentFactory(Default::default()),
         Expression::EmptyDataTransfer => Value::DataTransfer(Default::default()),
-        Expression::DebugHook { expression, .. } => eval_expression(expression, local_context),
+        Expression::DebugHook { expression, id: _id, .. } => {
+            #[cfg(feature = "internal")]
+            {
+                if let Some(hook_value) = crate::debug_hook::trigger_debug_hook(
+                    &local_context.component_instance,
+                    _id.clone(),
+                ) {
+                    return hook_value;
+                }
+            }
+
+            eval_expression(expression, local_context)
+        }
     }
 }
 
@@ -1820,7 +1832,9 @@ fn call_builtin_function(
                     item_info.item_index(),
                 );
 
-                item_rc.map_to_window(Default::default()).to_untyped().into()
+                // Map the item's own geometry origin through the ancestor transforms so the
+                // result is the item's absolute position (not its parent's).
+                item_rc.map_to_window(item_rc.geometry().origin).to_untyped().into()
             } else {
                 panic!("internal error: argument to SetFocusItem must be an element")
             }

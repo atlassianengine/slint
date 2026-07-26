@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use bytemuck::{Pod, Zeroable};
 use femtovg::{Canvas, Color, ImageFlags, ImageId, ImageInfo, Paint, Path, PixelFormat};
-use wgpu_29 as wgpu;
+use wgpu_30 as wgpu;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -757,7 +757,7 @@ impl GpuTimer {
         });
         device.poll(wgpu::PollType::wait_indefinitely())?;
         receiver.recv()??;
-        let mapped = slice.get_mapped_range();
+        let mapped = slice.get_mapped_range()?;
         let timestamps: &[u64] = bytemuck::cast_slice(&mapped);
         let elapsed =
             timestamps.chunks_exact(2).map(|pair| pair[1].saturating_sub(pair[0])).sum::<u64>();
@@ -810,6 +810,7 @@ fn run_benchmark(config: SpikeConfig) -> Result<(), Box<dyn Error>> {
         power_preference: wgpu::PowerPreference::HighPerformance,
         force_fallback_adapter: false,
         compatible_surface: None,
+        apply_limit_buckets: false,
     }))?;
     let timestamp_features =
         wgpu::Features::TIMESTAMP_QUERY | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS;
@@ -1144,6 +1145,7 @@ impl InteractiveRenderer {
             power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
             compatible_surface: Some(&surface),
+            apply_limit_buckets: false,
         }))?;
         let (device, queue) = spin_on::spin_on(adapter.request_device(&wgpu::DeviceDescriptor {
             label: Some("backdrop blur test app device"),
@@ -1368,7 +1370,7 @@ impl InteractiveRenderer {
             &mut command_buffers,
         );
         self.queue.submit(command_buffers);
-        surface_frame.present();
+        self.queue.present(surface_frame);
         Ok(())
     }
 }

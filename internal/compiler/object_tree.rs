@@ -16,13 +16,13 @@ use crate::langtype::{
 use crate::langtype::{ElementType, PropertyLookupResult};
 use crate::layout::{LayoutConstraints, Orientation};
 use crate::namedreference::NamedReference;
-use crate::parser;
 use crate::parser::{SyntaxKind, SyntaxNode, syntax_nodes};
 use crate::typeloader::{ImportKind, ImportedTypes, LibraryInfo};
 use crate::typeregister::TypeRegister;
+use crate::{parser, reject_experimental_feature};
 use itertools::Either;
 use smol_str::{SmolStr, ToSmolStr, format_smolstr};
-use std::cell::{Cell, OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, Ref, RefCell, RefMut};
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Display;
@@ -518,8 +518,7 @@ impl Component {
                         ElementType::Global
                     }
                     Some(t) if t == "interface" => {
-                        if !diag.enable_experimental && !tr.expose_internal_types {
-                            diag.push_error("'interface' is an experimental feature".into(), &node);
+                        if reject_experimental_feature(diag, tr, "interface", &node) {
                             ElementType::Error
                         } else {
                             ElementType::Interface
@@ -536,6 +535,28 @@ impl Component {
             ..Default::default()
         };
         let c = Rc::new(c);
+        // x and y on a Window are meaningless
+        if c.root_element
+            .borrow()
+            .builtin_type()
+            .is_some_and(|b| matches!(b.name.as_str(), "Window" | "Dialog"))
+        {
+            for prop in ["x", "y"] {
+                if let Some(b) = c.root_element.borrow().bindings.get(prop) {
+                    #[cfg(feature = "slint-sc")]
+                    if diag.slint_sc {
+                        diag.slint_sc_error(&format!("The property '{prop}' is"), &*b.borrow());
+                        continue;
+                    }
+                    diag.push_warning(
+                        format!(
+                            "Setting '{prop}' on a Window is deprecated, it doesn't affect the position of the window"
+                        ),
+                        &*b.borrow(),
+                    );
+                }
+            }
+        }
         let weak = Rc::downgrade(&c);
         recurse_elem(&c.root_element, &(), &mut |e, _| {
             e.borrow_mut().enclosing_component = weak.clone();
@@ -545,7 +566,6 @@ impl Component {
                 *qualified_id = format_smolstr!("{}::{}", c.id, qualified_id);
             }
         });
-        interfaces::apply_uses_statement(&c.root_element, node.UsesSpecifier(), tr, diag);
         c
     }
 
@@ -655,6 +675,10 @@ pub struct PropertyDeclaration {
     /// Whether the declaration shadows a builtin element member of the same name
     /// (diagnosed by the check_builtin_shadowing pass)
     pub shadows_builtin: bool,
+    /// Some if the property was declared with `@deprecated`. The string is the hint shown after
+    /// "The property 'xxx' has been deprecated." in the warning: either derived from the two-way
+    /// binding target, or the custom message given as argument to `@deprecated("...")`.
+    pub deprecated: Option<SmolStr>,
 }
 
 impl PropertyDeclaration {
@@ -666,6 +690,18 @@ impl PropertyDeclaration {
         } else {
             node.clone().into()
         }
+    }
+
+    /// True when declared `@deprecated` without a custom message, so the hint in
+    /// [`Self::deprecated`] is derived from the two-way binding target.
+    pub fn has_derived_deprecation(&self) -> bool {
+        self.deprecated.is_some()
+            && self
+                .node
+                .as_ref()
+                .and_then(|n| syntax_nodes::PropertyDeclaration::new(n.clone()))
+                .and_then(|p| p.PropertyDeprecation())
+                .is_some_and(|d| d.child_token(SyntaxKind::StringLiteral).is_none())
     }
 }
 
@@ -1108,8 +1144,12 @@ impl PropertyAnalysis {
 #[derive(Debug, Clone)]
 pub struct ListViewInfo {
     pub viewport_y: NamedReference,
-    pub viewport_height: NamedReference,
-    pub viewport_width: NamedReference,
+    /// `None` when the user explicitly sets `viewport-height` on the ListView;
+    /// `Some` when the ListView computes it from the content.
+    pub viewport_height: Option<NamedReference>,
+    /// `None` when the user explicitly sets `viewport-width` on the ListView;
+    /// `Some` when the ListView computes it from the content.
+    pub viewport_width: Option<NamedReference>,
     /// The ListView's inner visible height (not counting eventual scrollbar)
     pub listview_height: NamedReference,
     /// The ListView's inner visible width (not counting eventual scrollbar)
@@ -1150,6 +1190,11 @@ impl Element {
         diag: &mut BuildDiagnostics,
         tr: &TypeRegister,
     ) -> ElementRc {
+        // A child element's parent_type is the type of its parent; the root
+        // gets a sentinel from Component::from_node
+        #[cfg(feature = "slint-sc")]
+        let is_component_root =
+            !matches!(parent_type, ElementType::Builtin(_) | ElementType::Component(_));
         let base_type = if let Some(base_node) = node.QualifiedName() {
             let base = QualifiedTypeName::from_node(base_node.clone());
             let base_string = base.to_smolstr();
@@ -1218,6 +1263,14 @@ impl Element {
             if parent_type == ElementType::Interface {
                 node.Binding().for_each(|n| error_on(&n, "bindings"));
                 node.TwoWayBinding().for_each(|n| error_on(&n, "two-way bindings"));
+
+                node.ImplementStatement().for_each(|stmt| {
+                    diag.push_error("Interfaces cannot implement another interface".into(), &stmt);
+                });
+            } else {
+                node.ImplementStatement().for_each(|stmt| {
+                    diag.push_error("Globals cannot implement an interface".into(), &stmt);
+                });
             }
 
             parent_type
@@ -1267,8 +1320,14 @@ impl Element {
         )> = Vec::new();
 
         for prop_decl in node.PropertyDeclaration() {
+            // Only the root element's properties become part of the component's API
             #[cfg(feature = "slint-sc")]
-            diag.slint_sc_error("Property declarations are", &prop_decl);
+            if !is_component_root {
+                diag.slint_sc_error(
+                    "Declaring a property on an element other than the root is",
+                    &prop_decl,
+                );
+            }
             let prop_type = prop_decl
                 .Type()
                 .map(|type_node| type_from_node(type_node, diag, tr))
@@ -1365,6 +1424,37 @@ impl Element {
                 }
             }
 
+            let deprecated = prop_decl.PropertyDeprecation().and_then(|deprecation| {
+                if reject_experimental_feature(diag, tr, "@deprecated", &deprecation) {
+                    return None;
+                }
+                if let Some(message) = deprecation.child_token(SyntaxKind::StringLiteral) {
+                    crate::literals::unescape_string(message.text())
+                } else if let Some(qn) = prop_decl
+                    .TwoWayBinding()
+                    .and_then(|twb| twb.Expression().QualifiedName())
+                {
+                    // Keep the full target path (e.g. `a-struct.field`), dropping a leading
+                    // `self`/`root`. The resolving pass checks the target is actually reachable.
+                    let mut segments = qn
+                        .children_with_tokens()
+                        .filter(|t| t.kind() == SyntaxKind::Identifier)
+                        .map(|t| parser::normalize_identifier(t.as_token().unwrap().text()))
+                        .peekable();
+                    if segments.peek().is_some_and(|s| matches!(s.as_str(), "self" | "root")) {
+                        segments.next();
+                    }
+                    let path = segments.collect::<Vec<_>>().join(".");
+                    (!path.is_empty()).then(|| format_smolstr!("Please use '{path}' instead"))
+                } else {
+                    diag.push_error(
+                        "@deprecated without a message requires a two-way binding to derive the replacement from".into(),
+                        &deprecation,
+                    );
+                    None
+                }
+            });
+
             // Use the name as declared, not the resolved name: when the declaration
             // shadows a builtin member, the resolved name may be a native alias.
             r.property_declarations.insert(
@@ -1374,6 +1464,7 @@ impl Element {
                     node: Some(prop_decl.clone().into()),
                     visibility,
                     shadows_builtin,
+                    deprecated,
                     ..Default::default()
                 },
             );
@@ -1393,8 +1484,17 @@ impl Element {
             }
         }
 
-        let implemented_interface = interfaces::get_implemented_interface(&r, &node, tr, diag);
-        interfaces::apply_properties(&mut r, &implemented_interface, diag);
+        let (implemented_interfaces, child_implements) =
+            if matches!(r.base_type, ElementType::Global | ElementType::Interface) {
+                // Already rejected above with a more specific diagnostic.
+                (Vec::new(), Vec::new())
+            } else if r.id == "root" {
+                interfaces::get_implemented_interfaces(&r, &node, tr, diag)
+            } else {
+                interfaces::disallow_implement_in_non_root(&node, tr, diag);
+                (Vec::new(), Vec::new())
+            };
+        interfaces::apply_properties(&mut r, &implemented_interfaces, diag);
 
         for (prop_name, csn, source) in property_bindings {
             match r.bindings.entry(prop_name.clone()) {
@@ -1526,7 +1626,7 @@ impl Element {
             );
         }
 
-        interfaces::apply_callbacks(&mut r, &implemented_interface, diag);
+        interfaces::apply_callbacks(&mut r, &implemented_interfaces, diag);
 
         for func in node.Function() {
             #[cfg(feature = "slint-sc")]
@@ -1979,8 +2079,8 @@ impl Element {
             }
         }
 
-        interfaces::apply_default_property_values(&r, &implemented_interface);
-        interfaces::validate_function_implementations(&r.borrow(), &implemented_interface, diag);
+        interfaces::validate_function_implementations(&r.borrow(), &implemented_interfaces, diag);
+        interfaces::apply_child_implement_statements(&r, child_implements, diag);
 
         r
     }
@@ -2047,19 +2147,36 @@ impl Element {
         let is_listview = if parent_is_listview
             && let Some(geometry_props) = e.borrow().geometry_props.as_ref()
         {
+            let parent_elem = parent.borrow();
+            // Check if viewport-width and viewport-height are explicitly set by the user
+            let viewport_width_is_explicitly_set = parent_elem
+                .bindings
+                .get("viewport-width")
+                .map(|b| b.borrow().has_binding())
+                .unwrap_or(false);
+            let viewport_height_is_explicitly_set = parent_elem
+                .bindings
+                .get("viewport-height")
+                .map(|b| b.borrow().has_binding())
+                .unwrap_or(false);
+            drop(parent_elem); // Drop the borrow before creating NamedReference
+
             let lvi = ListViewInfo {
                 viewport_y: NamedReference::new(parent, SmolStr::new_static("viewport-y")),
-                viewport_height: NamedReference::new(
-                    parent,
-                    SmolStr::new_static("viewport-height"),
-                ),
-                viewport_width: NamedReference::new(parent, SmolStr::new_static("viewport-width")),
+                viewport_height: (!viewport_height_is_explicitly_set)
+                    .then(|| NamedReference::new(parent, SmolStr::new_static("viewport-height"))),
+                viewport_width: (!viewport_width_is_explicitly_set)
+                    .then(|| NamedReference::new(parent, SmolStr::new_static("viewport-width"))),
                 listview_height: NamedReference::new(parent, SmolStr::new_static("visible-height")),
                 listview_width: NamedReference::new(parent, SmolStr::new_static("visible-width")),
             };
             // these properties are set by the ListView layouting code
-            lvi.viewport_height.mark_as_set();
-            lvi.viewport_width.mark_as_set();
+            if let Some(viewport_height) = &lvi.viewport_height {
+                viewport_height.mark_as_set();
+            }
+            if let Some(viewport_width) = &lvi.viewport_width {
+                viewport_width.mark_as_set();
+            }
             geometry_props.y.mark_as_set();
             Some(lvi)
         } else {
@@ -2211,6 +2328,9 @@ impl Element {
                 is_in_direct_base: false,
                 is_shadowable: false,
                 builtin_function: None,
+                #[cfg(feature = "slint-sc")]
+                is_slint_sc: false,
+                deprecated: p.deprecated.clone(),
             },
         )
     }
@@ -2222,10 +2342,12 @@ impl Element {
         diag: &mut BuildDiagnostics,
     ) {
         for (name_token, b) in bindings {
-            #[cfg(feature = "slint-sc")]
-            diag.slint_sc_error("Bindings are", &name_token);
             let unresolved_name = crate::parser::normalize_identifier(name_token.text());
             let lookup_result = self.lookup_property(&unresolved_name);
+            #[cfg(feature = "slint-sc")]
+            if lookup_result.is_valid() && !lookup_result.is_slint_sc {
+                diag.slint_sc_error(&format!("The property '{unresolved_name}' is"), &name_token);
+            }
             if !lookup_result.property_type.is_property_type() {
                 match lookup_result.property_type {
                         Type::Invalid => {
@@ -2276,6 +2398,14 @@ impl Element {
                 diag.push_property_deprecation_warning(
                     &unresolved_name,
                     &lookup_result.resolved_name,
+                    &name_token,
+                );
+            } else if let Some(message) =
+                lookup_result.deprecated.as_ref().filter(|_| !lookup_result.is_local_to_component)
+            {
+                diag.push_property_deprecation_warning_with_message(
+                    &unresolved_name,
+                    message,
                     &name_token,
                 );
             }
@@ -2445,6 +2575,9 @@ impl Element {
     ///
     /// If `need_explicit` is true, then only consider binding set in the code, not the ones set
     /// by the compiler later.
+    ///
+    /// Synthetic debug hooks (materialized for unbound properties) are never considered set
+    /// (`has_binding` treats them as "no expression").
     pub fn is_binding_set(self: &Element, property_name: &str, need_explicit: bool) -> bool {
         if self.bindings.get(property_name).is_some_and(|b| {
             b.borrow().has_binding() && (!need_explicit || b.borrow().priority > 0)
@@ -2458,8 +2591,12 @@ impl Element {
     }
 
     /// Returns true if the property is set by a binding or an assignment expression
+    ///
+    /// Synthetic debug hooks (materialized for unbound properties) are not considered set.
     pub fn is_property_set(self: &Element, property_name: &str) -> bool {
-        self.bindings.contains_key(property_name)
+        self.bindings
+            .get(property_name)
+            .is_some_and(|b| !b.borrow().expression.is_synthetic_debug_hook())
             || self
                 .property_analysis
                 .borrow()
@@ -2468,10 +2605,45 @@ impl Element {
             || matches!(&self.base_type, ElementType::Component(base) if base.root_element.borrow().is_property_set(property_name))
     }
 
-    /// Set the property `property_name` of this Element only if it was not set.
-    /// the `expression_fn` will only be called if it isn't set
+    /// The binding for `property_name`, if one exists and is not a synthetic debug hook.
     ///
-    /// returns true if the binding was changed
+    /// This is the hook-aware replacement for `self.bindings.get(..)`: a synthetic debug hook
+    /// is a materialized placeholder for an *unbound* property and must read as "no binding".
+    /// Use this instead of the raw map whenever the question is "did anything bind this
+    /// property" or "what is this property's binding".
+    pub fn binding(&self, property_name: &str) -> Option<Ref<'_, BindingExpression>> {
+        self.bindings
+            .get(property_name)
+            .filter(|binding| !binding.borrow().expression.is_synthetic_debug_hook())
+            .map(|binding| binding.borrow())
+    }
+
+    /// Same as [`Self::binding`], but returns a mutable reference to the binding.
+    pub fn binding_mut(&self, property_name: &str) -> Option<RefMut<'_, BindingExpression>> {
+        self.bindings
+            .get(property_name)
+            .filter(|binding| !binding.borrow().expression.is_synthetic_debug_hook())
+            .map(|binding| binding.borrow_mut())
+    }
+
+    /// Iterate over the bindings that are not synthetic debug hooks.
+    ///
+    /// The hook-aware replacement for iterating `self.bindings` directly when enumerating the
+    /// properties that are actually set on this element.
+    pub fn real_bindings(&self) -> impl Iterator<Item = (&SmolStr, &RefCell<BindingExpression>)> {
+        self.bindings
+            .iter()
+            .filter(|(_, binding)| !binding.borrow().expression.is_synthetic_debug_hook())
+    }
+
+    /// Set the property `property_name` of this Element only if it was not set.
+    /// the `expression_fn` will only be called if it isn't set.
+    ///
+    /// If a synthetic debug hook exists for this property, the hook's inner expression is
+    /// replaced with the new value (keeping the wrapper and id) and the hook is marked
+    /// non-synthetic — so the property becomes live-editable at its real computed value.
+    ///
+    /// Returns true if the binding was changed.
     pub fn set_binding_if_not_set(
         &mut self,
         property_name: SmolStr,
@@ -2488,12 +2660,60 @@ impl Element {
                 vacant_entry.insert(binding.into());
             }
             Entry::Occupied(mut existing_entry) => {
+                let inner = existing_entry.get_mut().get_mut();
                 let mut binding: BindingExpression = expression_fn().into();
                 binding.priority = i32::MAX;
-                existing_entry.get_mut().get_mut().merge_with(&binding);
+                // merge_with takes care of overwriting synthetic debug hooks.
+                inner.merge_with(&binding);
             }
         };
         true
+    }
+
+    /// Unconditionally set the property `property_name` to `new_binding`, but handle a synthetic
+    /// debug hook that already occupies the slot specially: instead of replacing it, upgrade it
+    /// in-place (replace its inner expression, clear `synthetic`, keep the wrapper+id so the
+    /// property stays live-editable).
+    ///
+    /// Returns the old `BindingExpression` if a *real* (non-synthetic) binding was displaced so
+    /// the caller can report a conflict.  Returns `None` if the slot was empty or held only a
+    /// synthetic hook (no conflict).
+    ///
+    /// This is intended for passes like `lower_layout` that must force-set a property and need to
+    /// distinguish a genuine conflict from a synthetic placeholder.
+    pub fn set_binding(
+        &mut self,
+        property_name: SmolStr,
+        mut new_binding: BindingExpression,
+    ) -> Option<BindingExpression> {
+        match self.bindings.entry(property_name) {
+            Entry::Vacant(v) => {
+                v.insert(RefCell::new(new_binding));
+                None
+            }
+            Entry::Occupied(mut e) => {
+                let existing = e.get_mut().get_mut();
+                if let expression_tree::Expression::DebugHook { expression: _, synthetic, id } =
+                    &mut existing.expression
+                    && *synthetic
+                {
+                    // Adopt the previous synthetic debug hook into the new binding, which is now no
+                    // longer synthetic.
+                    let new_debug_hook = expression_tree::Expression::DebugHook {
+                        expression: Box::new(new_binding.expression),
+                        id: id.clone(),
+                        synthetic: false,
+                    };
+                    new_binding.expression = new_debug_hook;
+                    *existing = new_binding;
+                    // previously the binding was only a synthetic debug hook - don't report a
+                    // conflict
+                    return None;
+                }
+                // Real (non-synthetic) binding exists: replace it and report the conflict.
+                Some(std::mem::replace(e.get_mut().get_mut(), new_binding))
+            }
+        }
     }
 
     pub fn sub_component(&self) -> Option<&Rc<Component>> {
@@ -2575,7 +2795,9 @@ pub fn type_from_node(
         let prop_type = tr.lookup_qualified(&qualified_type.members);
 
         #[cfg(feature = "slint-sc")]
-        diag.slint_sc_error(&format!("The type '{qualified_type}' is"), &qualified_type_node);
+        if !prop_type.is_slint_sc() {
+            diag.slint_sc_error(&format!("The type '{qualified_type}' is"), &qualified_type_node);
+        }
 
         if prop_type == Type::Invalid && tr.lookup_element(&qualified_type.to_smolstr()).is_err() {
             diag.push_error(format!("Unknown type '{qualified_type}'"), &qualified_type_node);
@@ -3140,8 +3362,12 @@ pub fn visit_all_named_references_in_element(
         && let Some(lv) = &mut r.is_listview
     {
         vis(&mut lv.viewport_y);
-        vis(&mut lv.viewport_height);
-        vis(&mut lv.viewport_width);
+        if let Some(viewport_height) = &mut lv.viewport_height {
+            vis(viewport_height);
+        }
+        if let Some(viewport_width) = &mut lv.viewport_width {
+            vis(viewport_width);
+        }
         vis(&mut lv.listview_height);
         vis(&mut lv.listview_width);
     }

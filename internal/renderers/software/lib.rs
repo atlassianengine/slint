@@ -861,6 +861,60 @@ impl RendererSealed for SoftwareRenderer {
         (PhysicalSize::from_lengths(longest_line_width, height).cast() / scale_factor).cast()
     }
 
+    // Mirrors the font selection in text_size(), so both widths always come from the
+    // same font as what is rendered. The bitmap path measures word breaks only, which is
+    // all the caller asks for: char-wrap has no minimum and never reaches here.
+    fn text_content_widths(
+        &self,
+        text_item: Pin<&dyn i_slint_core::item_rendering::RenderString>,
+        item_rc: &i_slint_core::item_tree::ItemRc,
+    ) -> Option<i_slint_core::renderer::ContentWidths> {
+        let scale_factor = self.scale_factor()?;
+        let font_request = text_item.font_request(item_rc);
+        // Evaluate text() before borrowing font_context, as in text_size().
+        let content = text_item.text();
+        #[cfg(feature = "systemfonts")]
+        let slint_ctx = self.slint_context()?;
+        let font = {
+            #[cfg(feature = "systemfonts")]
+            let mut font_ctx = slint_ctx.font_context().borrow_mut();
+            fonts::match_font(
+                &font_request,
+                scale_factor,
+                #[cfg(feature = "systemfonts")]
+                &mut font_ctx,
+            )
+        };
+
+        #[cfg(feature = "systemfonts")]
+        if matches!(font, fonts::Font::VectorFont(_)) && !parley_disabled() {
+            return sharedparley::text_content_widths(self, text_item, item_rc);
+        }
+
+        let max_lines = text_item.line_limit();
+        let string = match &content {
+            PlainOrStyledText::Plain(string) => alloc::borrow::Cow::Borrowed(string.as_str()),
+            PlainOrStyledText::Styled(styled_text) => {
+                i_slint_core::styled_text::get_raw_text(styled_text)
+            }
+        };
+        let (min, max) = match &font {
+            #[cfg(feature = "systemfonts")]
+            fonts::Font::VectorFont(vf) => {
+                fonts::text_layout_for_font(vf, &font_request, scale_factor)
+                    .content_widths(&string, max_lines)
+            }
+            fonts::Font::PixelFont(pf) => {
+                fonts::text_layout_for_font(pf, &font_request, scale_factor)
+                    .content_widths(&string, max_lines)
+            }
+        };
+        Some(i_slint_core::renderer::ContentWidths {
+            min: (min.cast() / scale_factor).cast(),
+            max: (max.cast() / scale_factor).cast(),
+        })
+    }
+
     fn char_size(
         &self,
         text_item: Pin<&dyn i_slint_core::item_rendering::HasFont>,

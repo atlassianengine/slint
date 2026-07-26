@@ -15,14 +15,14 @@ The four-panel profile represents three header rails plus the navigator:
 
 ```powershell
 $env:SLINT_BLUR_SPIKE_PANEL_COUNT = '4'
-cargo run --release -p i-slint-renderer-femtovg --example backdrop_blur_spike --features wgpu-29
+cargo run --release -p i-slint-renderer-femtovg --example backdrop_blur_spike --features wgpu-30
 ```
 
 The six-panel profile represents all five header rails plus the navigator:
 
 ```powershell
 $env:SLINT_BLUR_SPIKE_PANEL_COUNT = '6'
-cargo run --release -p i-slint-renderer-femtovg --example backdrop_blur_spike --features wgpu-29
+cargo run --release -p i-slint-renderer-femtovg --example backdrop_blur_spike --features wgpu-30
 ```
 
 Both profiles default to 2560×1440, a 10-second warm-up, a 60-second sample, an 18-pixel blur radius, half-resolution blur, and a 60 FPS frame budget.

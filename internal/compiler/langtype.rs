@@ -208,6 +208,12 @@ impl From<Rc<Struct>> for Type {
 }
 
 impl Type {
+    /// Whether the type is part of the Slint SC subset
+    #[cfg(feature = "slint-sc")]
+    pub fn is_slint_sc(&self) -> bool {
+        matches!(self, Self::LogicalLength | Self::Color)
+    }
+
     /// valid type for properties
     pub fn is_property_type(&self) -> bool {
         matches!(
@@ -389,6 +395,10 @@ pub struct BuiltinPropertyInfo {
     pub property_visibility: PropertyVisibility,
     /// Raw `///` doc comment from builtins.slint, if any.
     pub docs: Option<String>,
+    /// Whether the property is part of the Slint SC subset
+    /// (`\sc` marker in its doc comment). Set by [`Self::set_docs`].
+    #[cfg(feature = "slint-sc")]
+    pub slint_sc: bool,
     /// True when a component may declare a member of the same name, shadowing this one
     /// (`//-shadowable` annotation in builtins.slint).
     /// Members added to a builtin element after its initial release should be marked
@@ -406,7 +416,19 @@ impl BuiltinPropertyInfo {
             property_visibility: PropertyVisibility::InOut,
             docs: None,
             shadowable: false,
+            #[cfg(feature = "slint-sc")]
+            slint_sc: false,
         }
+    }
+
+    /// Set the doc comment, deriving the Slint SC subset flag from its
+    /// `\sc` marker.
+    pub fn set_docs(&mut self, docs: Option<String>) {
+        #[cfg(feature = "slint-sc")]
+        {
+            self.slint_sc = docs.as_deref().is_some_and(crate::load_builtins::has_sc_marker);
+        }
+        self.docs = docs;
     }
 
     pub fn is_native_output(&self) -> bool {
@@ -422,6 +444,8 @@ impl From<BuiltinFunction> for BuiltinPropertyInfo {
             property_visibility: PropertyVisibility::Public,
             docs: None,
             shadowable: false,
+            #[cfg(feature = "slint-sc")]
+            slint_sc: false,
         }
     }
 }
@@ -489,6 +513,9 @@ impl ElementType {
                             BuiltinPropertyDefault::BuiltinFunction(f) => Some(f.clone()),
                             _ => None,
                         },
+                        #[cfg(feature = "slint-sc")]
+                        is_slint_sc: p.slint_sc,
+                        deprecated: None,
                     },
                 }
             }
@@ -509,6 +536,9 @@ impl ElementType {
                     is_in_direct_base: false,
                     is_shadowable: false,
                     builtin_function: None,
+                    #[cfg(feature = "slint-sc")]
+                    is_slint_sc: false,
+                    deprecated: None,
                 }
             }
             _ => PropertyLookupResult::invalid(Cow::Borrowed(name)),
@@ -690,7 +720,7 @@ macro_rules! define_builtin_struct_enum {
     ($(
         $(#[$attr:meta])*
         $vis:vis struct $Name:ident {
-            $( $(#[$field_attr:meta])* $field:ident : $field_type:ty, )*
+            $( $(#[$field_attr:meta])* $field:ident : $field_type:ty $(= $field_default:expr)?, )*
         }
     )*) => {
         #[derive(Debug, Clone, PartialEq, strum::EnumString, strum::IntoStaticStr)]
@@ -899,6 +929,16 @@ pub struct PropertyLookupResult<'a> {
 
     /// If the property is a builtin function
     pub builtin_function: Option<BuiltinFunction>,
+
+    /// Whether the property is part of the Slint SC subset
+    /// (`\sc` marker in its doc comment in builtins.slint).
+    #[cfg(feature = "slint-sc")]
+    pub is_slint_sc: bool,
+
+    /// Some if the property was declared with `@deprecated`: the hint message shown after
+    /// "The property 'xxx' has been deprecated." in the warning.
+    /// (Only set for properties declared in a component; builtin aliases use `resolved_name` instead.)
+    pub deprecated: Option<SmolStr>,
 }
 
 impl<'a> PropertyLookupResult<'a> {
@@ -926,6 +966,9 @@ impl<'a> PropertyLookupResult<'a> {
             is_in_direct_base: false,
             is_shadowable: false,
             builtin_function: None,
+            #[cfg(feature = "slint-sc")]
+            is_slint_sc: false,
+            deprecated: None,
         }
     }
 }
@@ -998,7 +1041,7 @@ impl From<BuiltinStruct> for StructName {
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub fields: BTreeMap<SmolStr, Type>,
-    /// User-declared default values for fields (`struct Foo { bar: int = 42 }`).
+    /// Default values for the fields.
     /// The expressions are resolved, converted to the field type, and constant-folded.
     /// Like the syntax node in `name`, this is ignored by `Type`'s equality comparison.
     pub field_defaults: BTreeMap<SmolStr, ConstantExpression>,
@@ -1006,8 +1049,7 @@ pub struct Struct {
 }
 
 impl Struct {
-    /// Create a struct without user-declared field default values
-    /// (only named struct declarations in .slint can have those).
+    /// Create a struct without declared field default values.
     pub fn new(fields: BTreeMap<SmolStr, Type>, name: impl Into<StructName>) -> Self {
         Self { fields, field_defaults: Default::default(), name: name.into() }
     }

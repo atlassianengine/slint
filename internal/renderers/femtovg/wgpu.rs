@@ -17,7 +17,7 @@ use i_slint_core::renderer::DrawOutcome;
 
 use crate::{BeginRendering, FemtoVGRenderer, GraphicsBackend, WindowSurface};
 
-use wgpu_29 as wgpu;
+use wgpu_30 as wgpu;
 
 pub struct WGPUBackend {
     instance: RefCell<Option<wgpu::Instance>>,
@@ -135,7 +135,9 @@ fn wgpu_take_snapshot_pixels(
             .map_err(|e| format!("take_snapshot: map_async callback was not delivered: {e}"))?
             .map_err(|e| format!("take_snapshot: map_async failed: {e}"))?;
 
-        let mapped = slice.get_mapped_range();
+        let mapped = slice
+            .get_mapped_range()
+            .map_err(|e| format!("take_snapshot: mapping the readback buffer failed: {e}"))?;
         let mut pixels = SharedPixelBuffer::<Rgba8Pixel>::new(width, height);
         let dst = pixels.make_mut_bytes();
         for (row_idx, src_row) in mapped.chunks(bytes_per_row as usize).enumerate() {
@@ -274,12 +276,12 @@ impl GraphicsBackend for WGPUBackend {
             if uses_backdrop && let Some(backdrop) = self.backdrop_blur.borrow().as_ref() {
                 backdrop.copy_to_surface(&frame.texture);
             }
-            frame.present();
+            self.queue.borrow().as_ref().unwrap().present(frame);
         }
         Ok(())
     }
 
-    #[cfg(feature = "unstable-wgpu-29")]
+    #[cfg(feature = "unstable-wgpu-30")]
     fn with_graphics_api<R>(
         &self,
         callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
@@ -288,7 +290,7 @@ impl GraphicsBackend for WGPUBackend {
         let device = self.device.borrow().clone();
         let queue = self.queue.borrow().clone();
         if let (Some(instance), Some(device), Some(queue)) = (instance, device, queue) {
-            Ok(callback(Some(i_slint_core::graphics::create_graphics_api_wgpu_29(
+            Ok(callback(Some(i_slint_core::graphics::create_graphics_api_wgpu_30(
                 instance, device, queue,
             ))))
         } else {
@@ -296,7 +298,7 @@ impl GraphicsBackend for WGPUBackend {
         }
     }
 
-    #[cfg(not(feature = "unstable-wgpu-29"))]
+    #[cfg(not(feature = "unstable-wgpu-30"))]
     fn with_graphics_api<R>(
         &self,
         callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
@@ -364,13 +366,13 @@ impl FemtoVGRenderer<WGPUBackend> {
     /// and works on all platforms except WASM.
     pub fn set_surface(
         &self,
-        surface_target: impl Into<i_slint_core::graphics::wgpu_29::SurfaceTarget>,
+        surface_target: impl Into<i_slint_core::graphics::wgpu_30::SurfaceTarget>,
         size: PhysicalWindowSize,
         requested_graphics_api: Option<RequestedGraphicsAPI>,
         transparent: bool,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (instance, adapter, device, queue, surface) =
-            i_slint_core::graphics::wgpu_29::init_instance_adapter_device_queue_surface(
+            i_slint_core::graphics::wgpu_30::init_instance_adapter_device_queue_surface(
                 surface_target,
                 requested_graphics_api,
                 /* rendering artifacts :( */
@@ -512,19 +514,19 @@ impl GraphicsBackend for WgpuTextureBackend {
         Ok(())
     }
 
-    #[cfg(feature = "unstable-wgpu-29")]
+    #[cfg(feature = "unstable-wgpu-30")]
     fn with_graphics_api<R>(
         &self,
         callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
     ) -> Result<R, i_slint_core::platform::PlatformError> {
-        Ok(callback(Some(i_slint_core::graphics::create_graphics_api_wgpu_29(
+        Ok(callback(Some(i_slint_core::graphics::create_graphics_api_wgpu_30(
             self.instance.clone(),
             self.device.clone(),
             self.queue.clone(),
         ))))
     }
 
-    #[cfg(not(feature = "unstable-wgpu-29"))]
+    #[cfg(not(feature = "unstable-wgpu-30"))]
     fn with_graphics_api<R>(
         &self,
         callback: impl FnOnce(Option<i_slint_core::api::GraphicsAPI<'_>>) -> R,
@@ -572,7 +574,7 @@ impl FemtoVGWGPURenderer {
     /// Creates a new FemtoVGWGPURenderer.
     ///
     /// The `instance`, `device` and `queue` are the WGPU resources used for rendering.
-    /// These are also provided to [`Window::set_rendering_notifier()`](i_slint_core::api::Window::set_rendering_notifier) callbacks via [`GraphicsAPI::WGPU29`](i_slint_core::api::GraphicsAPI::WGPU29).
+    /// These are also provided to [`Window::set_rendering_notifier()`](i_slint_core::api::Window::set_rendering_notifier) callbacks via [`GraphicsAPI::WGPU30`](i_slint_core::api::GraphicsAPI::WGPU30).
     pub fn new(
         instance: wgpu::Instance,
         device: wgpu::Device,
@@ -641,6 +643,14 @@ impl RendererSealed for FemtoVGWGPURenderer {
         text_wrap: i_slint_core::items::TextWrap,
     ) -> i_slint_core::lengths::LogicalSize {
         self.0.text_size(text_item, item_rc, max_width, text_wrap)
+    }
+
+    fn text_content_widths(
+        &self,
+        text_item: Pin<&dyn i_slint_core::item_rendering::RenderString>,
+        item_rc: &i_slint_core::items::ItemRc,
+    ) -> Option<i_slint_core::renderer::ContentWidths> {
+        self.0.text_content_widths(text_item, item_rc)
     }
 
     fn char_size(

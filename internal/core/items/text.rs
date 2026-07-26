@@ -9,10 +9,10 @@ When adding an item or a property, it needs to be kept in sync with different pl
 Lookup the [`crate::items`] module documentation.
 */
 use super::{
-    EventResult, FontMetrics, InputType, Item, ItemConsts, ItemRc, ItemRef, KeyEventArg,
-    KeyEventResult, KeyEventType, PointArg, PointerEventButton, RenderingResult, StringArg,
-    TextHorizontalAlignment, TextOverflow, TextStrokeStyle, TextVerticalAlignment, TextWrap,
-    VoidArg,
+    EventResult, FontMetrics, InputMethodHints, InputType, Item, ItemConsts, ItemRc, ItemRef,
+    KeyEventArg, KeyEventResult, KeyEventType, PointArg, PointerEventButton, RenderingResult,
+    StringArg, TextHorizontalAlignment, TextOverflow, TextStrokeStyle, TextVerticalAlignment,
+    TextWrap, VoidArg,
 };
 use crate::graphics::{Brush, Color, FontRequest};
 use crate::input::{
@@ -669,21 +669,31 @@ fn text_layout_info(
     // letters will be cut off, apply the ceiling here.
     match orientation {
         Orientation::Horizontal => {
-            let implicit_size = implicit_size(None, TextWrap::NoWrap);
-            let min = match text.overflow() {
-                TextOverflow::Elide => implicit_size
-                    .width
-                    .min(window_adapter.renderer().char_size(text, self_rc, '…').width),
-                TextOverflow::Clip => match text.wrap() {
-                    TextWrap::NoWrap => implicit_size.width,
-                    TextWrap::WordWrap | TextWrap::CharWrap => 0 as Coord,
-                },
+            // A word-wrapping text mustn't be squeezed below its longest word. One
+            // content-widths measurement gives both that minimum and the single-line
+            // preferred width, so this replaces the plain measurement below.
+            let word_wrap_widths =
+                matches!((text.overflow(), text.wrap()), (TextOverflow::Clip, TextWrap::WordWrap))
+                    .then(|| window_adapter.renderer().text_content_widths(text, self_rc))
+                    .flatten();
+
+            let (min, preferred) = match word_wrap_widths {
+                Some(widths) => (widths.min.get(), widths.max.get()),
+                None => {
+                    let unwrapped_width = implicit_size(None, TextWrap::NoWrap).width;
+                    let min = match text.overflow() {
+                        TextOverflow::Elide => unwrapped_width
+                            .min(window_adapter.renderer().char_size(text, self_rc, '…').width),
+                        TextOverflow::Clip => match text.wrap() {
+                            TextWrap::NoWrap => unwrapped_width,
+                            // char-wrap can break anywhere, so it keeps no lower bound.
+                            TextWrap::WordWrap | TextWrap::CharWrap => 0 as Coord,
+                        },
+                    };
+                    (min, unwrapped_width)
+                }
             };
-            LayoutInfo {
-                min: min.ceil(),
-                preferred: implicit_size.width.ceil(),
-                ..LayoutInfo::default()
-            }
+            LayoutInfo { min: min.ceil(), preferred: preferred.ceil(), ..LayoutInfo::default() }
         }
         Orientation::Vertical => {
             let h = match text.wrap() {
@@ -760,6 +770,7 @@ pub struct TextInput {
     pub vertical_alignment: Property<TextVerticalAlignment>,
     pub wrap: Property<TextWrap>,
     pub input_type: Property<InputType>,
+    pub input_method_hints: Property<InputMethodHints>,
     pub letter_spacing: Property<LogicalLength>,
     pub width: Property<LogicalLength>,
     pub height: Property<LogicalLength>,
@@ -1854,6 +1865,7 @@ impl TextInput {
             cursor_rect_size,
             anchor_point,
             input_type: self.input_type(),
+            input_method_hints: self.input_method_hints(),
             clip_rect,
         }
     }
@@ -2516,11 +2528,12 @@ pub unsafe extern "C" fn slint_cpp_text_item_fontmetrics(
     window_adapter: *const crate::window::ffi::WindowAdapterRcOpaque,
     self_component: &vtable::VRc<crate::item_tree::ItemTreeVTable>,
     self_index: u32,
-) -> FontMetrics {
+    out: *mut FontMetrics,
+) {
     unsafe {
         let window_adapter = &*(window_adapter as *const Rc<dyn WindowAdapter>);
         let self_rc = ItemRc::new(self_component.clone(), self_index);
         let self_ref = self_rc.borrow();
-        slint_text_item_fontmetrics(window_adapter, self_ref, &self_rc)
+        core::ptr::write(out, slint_text_item_fontmetrics(window_adapter, self_ref, &self_rc));
     }
 }

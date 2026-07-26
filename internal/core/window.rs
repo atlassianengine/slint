@@ -19,7 +19,9 @@ use crate::item_tree::{
     ItemRc, ItemTreeRc, ItemTreeRef, ItemTreeRefPin, ItemTreeVTable, ItemTreeWeak, ItemWeak,
     ParentItemTraversalMode,
 };
-use crate::items::{BuiltInMouseCursor, InputType, ItemRef, MenuEntry, PopupClosePolicy};
+use crate::items::{
+    BuiltInMouseCursor, InputMethodHints, InputType, ItemRef, MenuEntry, PopupClosePolicy,
+};
 use crate::lengths::{LogicalLength, LogicalPoint, LogicalRect, LogicalVector, SizeLengths};
 use crate::menus::MenuVTable;
 use crate::properties::{Property, PropertyTracker};
@@ -63,7 +65,7 @@ pub enum WindowKind {
 ///
 /// - When receiving messages from the windowing system about state changes, such as the window being resized,
 ///   the user requested the window to be closed, input being received, etc. you need to create a
-///   [`WindowEvent`](crate::platform::WindowEvent) and send it to Slint via [`Window::try_dispatch_event()`].
+///   [`WindowEvent`](crate::platform::WindowEvent) and send it to Slint via [`Window::dispatch_event_with_result()`].
 ///
 /// - Slint sends requests to change visibility, position, size, etc. via functions such as [`Self::set_visible`],
 ///   [`Self::set_size`], [`Self::set_position`], or [`Self::update_window_properties()`]. Re-implement these functions
@@ -371,6 +373,8 @@ pub struct InputMethodProperties {
     pub anchor_point: LogicalPosition,
     /// The type of input for the text edit.
     pub input_type: InputType,
+    /// The hints for the input method for the text edit.
+    pub input_method_hints: InputMethodHints,
     /// The clip rect in window coordinates
     pub clip_rect: Option<LogicalRect>,
 }
@@ -2695,10 +2699,10 @@ pub mod ffi {
                     let cpp_graphics_api = match graphics_api {
                         crate::api::GraphicsAPI::NativeOpenGL { .. } => GraphicsAPI::NativeOpenGL,
                         crate::api::GraphicsAPI::WebGL { .. } => unreachable!(), // We don't support wasm with C++
-                        #[cfg(feature = "unstable-wgpu-28")]
-                        crate::api::GraphicsAPI::WGPU28 { .. } => GraphicsAPI::Inaccessible, // There is no C++ API for wgpu (maybe wgpu c in the future?)
                         #[cfg(feature = "unstable-wgpu-29")]
                         crate::api::GraphicsAPI::WGPU29 { .. } => GraphicsAPI::Inaccessible, // There is no C++ API for wgpu (maybe wgpu c in the future?)
+                        #[cfg(feature = "unstable-wgpu-30")]
+                        crate::api::GraphicsAPI::WGPU30 { .. } => GraphicsAPI::Inaccessible, // There is no C++ API for wgpu (maybe wgpu c in the future?)
                     };
                     (self.callback)(state, cpp_graphics_api, self.user_data)
                 }

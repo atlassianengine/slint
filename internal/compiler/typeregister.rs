@@ -362,6 +362,8 @@ pub fn reserved_property(name: std::borrow::Cow<'_, str>) -> PropertyLookupResul
     {
         return PropertyLookupResult {
             property_type: ty,
+            #[cfg(feature = "slint-sc")]
+            is_slint_sc: matches!(name.as_ref(), "x" | "y" | "width" | "height"),
             resolved_name: name,
             is_local_to_component: false,
             is_in_direct_base: false,
@@ -369,6 +371,7 @@ pub fn reserved_property(name: std::borrow::Cow<'_, str>) -> PropertyLookupResul
             property_visibility: visibility,
             declared_pure: None,
             builtin_function,
+            deprecated: None,
         };
     }
 
@@ -388,6 +391,9 @@ pub fn reserved_property(name: std::borrow::Cow<'_, str>) -> PropertyLookupResul
                         property_visibility: crate::object_tree::PropertyVisibility::InOut,
                         declared_pure: None,
                         builtin_function: None,
+                        #[cfg(feature = "slint-sc")]
+                        is_slint_sc: false,
+                        deprecated: None,
                     };
                 }
             }
@@ -502,7 +508,7 @@ impl TypeRegister {
             ($(
                 $(#[$attr:meta])*
                 $vis:vis struct $Name:ident {
-                    $( $(#[$field_attr:meta])* $field:ident : $field_type:ident, )*
+                    $( $(#[$field_attr:meta])* $field:ident : $field_type:ident $(= $field_default:expr)?, )*
                 }
             )*) => { $(
                 register.insert_type_with_name(Type::Struct(builtin_structs::$Name()), SmolStr::new(stringify!($Name)));
@@ -817,6 +823,7 @@ impl TypeRegister {
 /// Type definitions for each builtin struct
 pub mod builtin_structs {
     use super::*;
+    use crate::langtype::ConstantExpression;
 
     thread_local! {
         pub static BUILTIN_STRUCTS: BuiltinStructs = BuiltinStructs::new();
@@ -845,11 +852,25 @@ pub mod builtin_structs {
         };
     }
 
+    macro_rules! parse_default_field {
+        (true) => { ConstantExpression::BoolLiteral(true) };
+        (false) => { ConstantExpression::BoolLiteral(false) };
+        ($lit:literal) => { ConstantExpression::NumberLiteral($lit as _, Unit::None) };
+        ($enum:ident :: $value:ident) => {
+            ConstantExpression::EnumerationValue(BUILTIN.with(|e| {
+                let variant = crate::generator::to_kebab_case(stringify!($value));
+                e.enums.$enum.clone().try_value_from_string(&variant)
+                    .expect(concat!("unknown enum variant in field default ", stringify!($enum), "::", stringify!($value)))
+            }))
+        };
+        (($($tt:tt)*)) => { parse_default_field!($($tt)*) };
+    }
+
     macro_rules! declare_builtin_structs {
         ($(
             $(#[$attr:meta])*
             $vis:vis struct $Name:ident {
-                $( $(#[$field_attr:meta])* $field:ident : $field_type:ident, )*
+                $( $(#[$field_attr:meta])* $field:ident : $field_type:ident $(= $field_default:tt)?, )*
             }
         )*) => {
             pub struct BuiltinStructs {
@@ -861,13 +882,26 @@ pub mod builtin_structs {
             impl BuiltinStructs {
                 pub fn new() -> Self {
                     $(
-                    #[allow(non_snake_case)]
-                    let $Name = Rc::new(Struct::new(
-                        BTreeMap::from([
-                            $((stringify!($field).replace_smolstr("_", "-"), map_type!($field_type, $field_type))),*
-                        ]),
-                        BuiltinStruct::$Name,
-                    ));
+                        #[allow(non_snake_case)]
+                        let $Name = {
+                            let mut fields = BTreeMap::new();
+                            #[allow(unused_mut)]
+                            let mut field_defaults = BTreeMap::new();
+                            $(
+                                let field_name = stringify!($field).replace_smolstr("_", "-");
+                                let field_type = map_type!($field_type, $field_type);
+                                $(field_defaults.insert(
+                                    field_name.clone(),
+                                    parse_default_field!($field_default),
+                                );)?
+                                fields.insert(field_name, field_type);
+                            )*
+                            Rc::new(Struct {
+                                fields,
+                                field_defaults,
+                                name: BuiltinStruct::$Name.into(),
+                            })
+                        };
                     )*
 
                     Self {
