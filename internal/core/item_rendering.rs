@@ -10,6 +10,7 @@ use crate::item_tree::ItemTreeRc;
 use crate::item_tree::{ItemVisitor, ItemVisitorVTable, VisitChildrenResult};
 use crate::lengths::{
     LogicalBorderRadius, LogicalLength, LogicalPoint, LogicalRect, LogicalSize, LogicalVector,
+    ScaleFactor,
 };
 pub use crate::partial_renderer::CachedRenderingData;
 use crate::window::WindowAdapterRc;
@@ -377,6 +378,15 @@ pub trait RenderString: HasFont {
     fn line_limit(self: Pin<&Self>) -> Option<usize> {
         usize::try_from(self.max_lines()).ok().filter(|max_lines| *max_lines > 0)
     }
+    /// Stroke brush, width and style. The style is baked into the shaped glyphs, so it lives
+    /// here (rather than in `RenderText`) to keep measuring and drawing shaping-identical.
+    fn stroke(self: Pin<&Self>) -> (Brush, LogicalLength, TextStrokeStyle) {
+        Default::default()
+    }
+    /// Color of `Style::Link` spans. Like `stroke`, it's baked into the shaped glyphs.
+    fn link_color(self: Pin<&Self>) -> Color {
+        Default::default()
+    }
 }
 
 /// Trait for an item that represents an Text towards the renderer
@@ -387,9 +397,7 @@ pub trait RenderText: RenderString {
     fn alignment(self: Pin<&Self>) -> (TextHorizontalAlignment, TextVerticalAlignment);
     fn wrap(self: Pin<&Self>) -> TextWrap;
     fn overflow(self: Pin<&Self>) -> TextOverflow;
-    fn stroke(self: Pin<&Self>) -> (Brush, LogicalLength, TextStrokeStyle);
     fn is_markdown(self: Pin<&Self>) -> bool;
-    fn link_color(self: Pin<&Self>) -> Color;
 }
 
 impl HasFont for (SharedString, Brush) {
@@ -420,10 +428,6 @@ impl RenderText for (SharedString, Brush) {
         self.1.clone()
     }
 
-    fn link_color(self: Pin<&Self>) -> Color {
-        Default::default()
-    }
-
     fn alignment(
         self: Pin<&Self>,
     ) -> (crate::items::TextHorizontalAlignment, crate::items::TextVerticalAlignment) {
@@ -435,10 +439,6 @@ impl RenderText for (SharedString, Brush) {
     }
 
     fn overflow(self: Pin<&Self>) -> crate::items::TextOverflow {
-        Default::default()
-    }
-
-    fn stroke(self: Pin<&Self>) -> (Brush, LogicalLength, TextStrokeStyle) {
         Default::default()
     }
 
@@ -575,7 +575,7 @@ pub trait ItemRenderer {
     fn restore_state(&mut self);
 
     /// Returns the scale factor
-    fn scale_factor(&self) -> f32;
+    fn scale_factor(&self) -> ScaleFactor;
 
     /// Draw a pixmap in position indicated by the `pos`.
     /// The pixmap will be taken from cache if the cache is valid, otherwise, update_fn will be called
@@ -664,7 +664,7 @@ where
     R: LayerRenderer<'cache> + ?Sized + 'cache,
 {
     let cache = renderer.layer_cache();
-    let scale_factor = crate::lengths::ScaleFactor::new(renderer.scale_factor());
+    let scale_factor = renderer.scale_factor();
 
     let compute_bounds = |r: &R| -> LogicalRect {
         item_children_bounding_rect(item_rc, &r.window().window_adapter())
