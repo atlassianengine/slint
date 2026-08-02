@@ -1,0 +1,134 @@
+import { ScrollView } from "std-widgets.slint";
+import { Colors } from "@UIKitSlint";
+import { PlannerDayColumn } from "../../models.slint";
+
+export component WeeklyView inherits Rectangle {
+    in property <[PlannerDayColumn]> day-columns;
+    in property <string> active-day-key;
+
+    callback day-selected(string);
+    callback item-selected(string);
+
+    background: Colors.paper-body;
+
+    HorizontalLayout {
+        width: 100%;
+        height: 100%;
+        spacing: 0px;
+
+        for day-column[idx] in root.day-columns : Rectangle {
+            horizontal-stretch: 1;
+            background: Colors.paper-surface;
+            border-color: Colors.border-subtle;
+            border-width: 1px;
+
+            VerticalLayout {
+                width: 100%;
+                height: 100%;
+                spacing: 0px;
+
+                Rectangle {
+                    min-height: 44px;
+                    width: 100%;
+                    background: day-column.id == root.active-day-key
+                        ? Colors.primary.with-alpha(0.08)
+                        : Colors.paper-surface;
+                    border-color: Colors.border-subtle;
+                    border-width: 1px;
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        clicked => { root.day-selected(day-column.id); }
+                    }
+
+                    Text {
+                        width: 100%;
+                        height: 100%;
+                        text: day-column.name;
+                        color: Colors.ink-body;
+                        font-size: 12px;
+                        font-weight: 600;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    width: 100%;
+
+                    VerticalLayout {
+                        width: 100%;
+                        padding: 6px;
+                        spacing: 6px;
+
+                        for item in day-column.items : Rectangle {
+                            background: item.accent.with-alpha(0.16);
+                            border-color: item.accent;
+                            border-width: 1px;
+                            border-radius: 999px;
+                            min-height: 62px;
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            padding-top: 8px;
+                            padding-bottom: 8px;
+
+                            TouchArea {
+                                width: 100%;
+                                height: 100%;
+                                clicked => { root.item-selected(item.id); }
+                            }
+
+                            VerticalLayout {
+                                spacing: 4px;
+
+                                Text {
+                                    text: item.title;
+                                    color: Colors.ink-body;
+                                    font-size: 12px;
+                                    font-weight: 700;
+                                    overflow: elide;
+                                }
+
+                                if item.subtitle != "" : Text {
+                                    text: item.subtitle;
+                                    color: Colors.ink-muted;
+                                    font-size: 10px;
+                                    overflow: elide;
+                                }
+
+                                if item.role != "" : Rectangle {
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    border-radius: 999px;
+                                    background: item.accent.with-alpha(0.25);
+                                    border-width: 1px;
+                                    border-color: item.accent;
+                                    height: 16px;
+
+                                    Text {
+                                        text: item.role;
+                                        color: Colors.ink-body;
+                                        font-size: 9px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if idx < root.day-columns.length - 1 : Rectangle {
+                x: parent.width - 1px;
+                y: 0px;
+                width: 1px;
+                height: parent.height;
+                background: Colors.border-subtle;
+            }
+        }
+    }
+}

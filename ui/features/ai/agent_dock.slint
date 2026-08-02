@@ -1,0 +1,40 @@
+// Slint guideline compliant UI Component
+
+import { VerticalBox, Button } from "std-widgets.slint";
+import { Colors, Typography } from "@UIKitSlint";
+
+export component AgentDock inherits Rectangle {
+    in property <string> active-agent-name: "Developer Intelligence Agent";
+    in property <string> execution-status: "idle";
+    in property <float> run-progress: 0.0;
+
+    callback trigger-run();
+
+    background: Colors.paper-body;
+    border-width: 1px;
+    border-color: Colors.border-subtle;
+    border-radius: 8px;
+
+    VerticalBox {
+        padding: 12px;
+        spacing: 8px;
+
+        Text {
+            text: root.active-agent-name;
+            font-size: Typography.size-md;
+            font-weight: 600;
+            color: Colors.ink-body;
+        }
+
+        Text {
+            text: "Status: \{root.execution-status}";
+            font-size: Typography.size-xs;
+            color: Colors.ink-body;
+        }
+
+        Button {
+            text: "Run Action";
+            clicked => { root.trigger-run(); }
+        }
+    }
+}

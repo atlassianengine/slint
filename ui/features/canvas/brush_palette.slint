@@ -1,0 +1,44 @@
+// Slint guideline compliant UI Component
+
+import { HorizontalBox, Button } from "std-widgets.slint";
+import { Colors } from "@UIKitSlint";
+
+export component BrushPalette inherits Rectangle {
+    in-out property <string> selected-tool: "brush";
+
+    callback tool-selected(string);
+
+    background: Colors.paper-body;
+    border-width: 1px;
+    border-color: Colors.border-subtle;
+    border-radius: 20px;
+
+    HorizontalBox {
+        padding: 6px;
+        spacing: 6px;
+
+        Button {
+            text: "Brush";
+            clicked => {
+                root.selected-tool = "brush";
+                root.tool-selected("brush");
+            }
+        }
+
+        Button {
+            text: "Stamp";
+            clicked => {
+                root.selected-tool = "stamp";
+                root.tool-selected("stamp");
+            }
+        }
+
+        Button {
+            text: "Union";
+            clicked => {
+                root.selected-tool = "union";
+                root.tool-selected("union");
+            }
+        }
+    }
+}

@@ -1,0 +1,184 @@
+import { Node } from "../../models.slint";
+import { Borders, Colors, Motion, Shadows, Typography } from "@UIKitSlint";
+import { WorkspacePalette } from "../../theme/workspace_palette.slint";
+
+// Retrospect-local card chrome. Its concentric 12px / 8px radii and 4px
+// body inset are product geometry inherited from the existing canvas node
+// contract; all appearance roles come from the resolved semantic theme.
+export component CanvasNodeShell inherits Rectangle {
+    in property <Node> node;
+    in property <bool> hovered;
+    // CanvasNode owns the world-to-screen zoom. Keeping every chrome metric
+    // derived from this one input prevents title/body/footer drift at zoom.
+    in property <float> zoom: 1.0;
+
+    private property <angle> ring-phase: 0deg;
+    private property <bool> glow-active: root.node.selected || root.node.running || root.hovered;
+    private property <bool> ring-animated: root.node.running || root.hovered;
+    private property <float> ring-inset: root.zoom;
+    private property <float> ring-radius: 12.0 * root.zoom;
+    private property <float> ring-control: root.ring-radius * 0.55228475;
+
+    background: transparent;
+
+    // Running nodes keep the glow but do not repaint the whole scene forever.
+    // The moving edge is reserved for direct interaction/focus.
+    Timer {
+        interval: 250ms;
+        running: root.ring-animated;
+        // 7.5° per 250ms = a calm 12-second lap.
+        triggered => { root.ring-phase = root.ring-phase + 7.5deg; }
+    }
+
+    // Soft bloom behind the card. The ring below supplies the precise edge;
+    // this layer supplies the legacy BorderGlow-style bloom.
+    Rectangle {
+        x: -6px * root.zoom;
+        y: -6px * root.zoom;
+        width: parent.width + 12px * root.zoom;
+        height: parent.height + 12px * root.zoom;
+        border-radius: 18px * root.zoom;
+        background: root.node.accent.with-alpha(root.glow-active ? 0.025 : 0.008);
+        drop-shadow-color: root.node.accent.with-alpha(root.glow-active ? 0.28 : 0.10);
+        drop-shadow-blur: root.glow-active ? Shadows.glow-md-blur : 8px;
+        z: -1;
+        animate background { duration: Motion.duration-base; easing: cubic-bezier(0.2, 0.0, 0.0, 1.0); }
+        animate drop-shadow-color { duration: Motion.duration-base; easing: cubic-bezier(0.2, 0.0, 0.0, 1.0); }
+    }
+
+    // A stroked rounded-rect path gives the old app's moving border-glow
+    // treatment without placing glow pixels underneath the translucent body.
+    border-ring := Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        border-radius: 12px * root.zoom;
+        background: root.hovered ? WorkspacePalette.node-card-border-hover : WorkspacePalette.node-card-border;
+
+        if root.glow-active : Path {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: parent.height;
+            viewbox-width: parent.width / 1px;
+            viewbox-height: parent.height / 1px;
+            fit: fill;
+            stroke: @conic-gradient(
+                from root.ring-phase,
+                transparent 0deg,
+                root.node.accent.with-alpha(root.node.selected ? 1.0 : 0.65) 40deg,
+                root.node.accent.with-alpha(0.55) 80deg,
+                transparent 120deg,
+                transparent 240deg,
+                root.node.accent.with-alpha(root.hovered ? 0.82 : 0.55) 280deg,
+                root.node.accent.with-alpha(0.45) 320deg,
+                transparent 360deg
+            );
+            stroke-width: 2px * root.zoom;
+            stroke-line-cap: round;
+            stroke-line-join: round;
+            anti-alias: true;
+            MoveTo { x: root.ring-inset + root.ring-radius; y: root.ring-inset; }
+            LineTo { x: parent.width / 1px - root.ring-inset - root.ring-radius; y: root.ring-inset; }
+            CubicTo {
+                control-1-x: parent.width / 1px - root.ring-inset - root.ring-radius + root.ring-control;
+                control-1-y: root.ring-inset;
+                control-2-x: parent.width / 1px - root.ring-inset;
+                control-2-y: root.ring-inset + root.ring-radius - root.ring-control;
+                x: parent.width / 1px - root.ring-inset;
+                y: root.ring-inset + root.ring-radius;
+            }
+            LineTo { x: parent.width / 1px - root.ring-inset; y: parent.height / 1px - root.ring-inset - root.ring-radius; }
+            CubicTo {
+                control-1-x: parent.width / 1px - root.ring-inset;
+                control-1-y: parent.height / 1px - root.ring-inset - root.ring-radius + root.ring-control;
+                control-2-x: parent.width / 1px - root.ring-inset - root.ring-radius + root.ring-control;
+                control-2-y: parent.height / 1px - root.ring-inset;
+                x: parent.width / 1px - root.ring-inset - root.ring-radius;
+                y: parent.height / 1px - root.ring-inset;
+            }
+            LineTo { x: root.ring-inset + root.ring-radius; y: parent.height / 1px - root.ring-inset; }
+            CubicTo {
+                control-1-x: root.ring-inset + root.ring-radius - root.ring-control;
+                control-1-y: parent.height / 1px - root.ring-inset;
+                control-2-x: root.ring-inset;
+                control-2-y: parent.height / 1px - root.ring-inset - root.ring-radius + root.ring-control;
+                x: root.ring-inset;
+                y: parent.height / 1px - root.ring-inset - root.ring-radius;
+            }
+            LineTo { x: root.ring-inset; y: root.ring-inset + root.ring-radius; }
+            CubicTo {
+                control-1-x: root.ring-inset;
+                control-1-y: root.ring-inset + root.ring-radius - root.ring-control;
+                control-2-x: root.ring-inset + root.ring-radius - root.ring-control;
+                control-2-y: root.ring-inset;
+                x: root.ring-inset + root.ring-radius;
+                y: root.ring-inset;
+            }
+        }
+    }
+
+    surface := Rectangle {
+        x: 1px * root.zoom;
+        y: 1px * root.zoom;
+        width: parent.width - 2px * root.zoom;
+        height: parent.height - 2px * root.zoom;
+        border-radius: 11px * root.zoom;
+        clip: true;
+        // The border glow is real stroke geometry now, so translucent card
+        // fills no longer reveal a full-card glow layer underneath.
+        background: WorkspacePalette.node-card-fill;
+
+        header := Rectangle {
+            x: 0px;
+            y: 0px;
+            width: parent.width;
+            height: 32px * root.zoom;
+            // Multi-stop accent wash: enough structure to feel like the old
+            // Retrospect header, without casting a spotlight into the body.
+            background: @linear-gradient(
+                90deg,
+                root.node.accent.with-alpha(root.hovered ? 0.16 : 0.11),
+                root.node.accent.with-alpha(root.hovered ? 0.10 : 0.07),
+                WorkspacePalette.node-card-fill
+            );
+            animate background { duration: Motion.duration-fast; easing: cubic-bezier(0.2, 0.0, 0.0, 1.0); }
+
+            Rectangle {
+                x: 0px;
+                y: parent.height - Borders.width-thin * root.zoom;
+                width: parent.width;
+                height: Borders.width-thin * root.zoom;
+                background: root.node.accent.with-alpha(root.hovered ? 0.22 : 0.15);
+                animate background { duration: Motion.duration-fast; easing: cubic-bezier(0.2, 0.0, 0.0, 1.0); }
+            }
+
+            // Explicit bounds keep the title centred in the header at every
+            // zoom level. The old leading/trailing status dots were visual
+            // noise and made the apparent title alignment depend on state.
+            Text {
+                x: 12px * root.zoom;
+                y: 0px;
+                width: parent.width - 24px * root.zoom;
+                height: parent.height;
+                text: root.node.title;
+                color: Colors.ink-headers;
+                font-family: Typography.font-body;
+                font-size: 13px * root.zoom;
+                font-weight: 650;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+        }
+
+        body-slot := Rectangle {
+            x: 0px;
+            y: 32px * root.zoom;
+            width: parent.width;
+            height: parent.height - 32px * root.zoom;
+            background: transparent;
+            @children
+        }
+    }
+}

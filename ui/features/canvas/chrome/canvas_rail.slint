@@ -1,0 +1,52 @@
+// Retrospect's native equivalent of CanvasRailHost / CanvasRailSurface.
+// It is deliberately feature-local: rail placement and chrome are part of the
+// Retrospect canvas language, not a product-neutral ui-kit-slint primitive.
+
+import { CanvasGeometry } from "canvas_geometry.slint";
+import { GlassPanel } from "../../../components/shell/glass_panel.slint";
+import { WorkspacePalette } from "../../../theme/workspace_palette.slint";
+
+export enum CanvasRailPlacement { left, right, top, bottom }
+export enum CanvasRailAlignment { center, start }
+export enum CanvasRailVariant { normal, ghost }
+
+export component CanvasRailHost inherits Rectangle {
+    in property <CanvasRailPlacement> placement: CanvasRailPlacement.left;
+    in property <CanvasRailAlignment> alignment: CanvasRailAlignment.center;
+    in property <length> viewport-width;
+    in property <length> viewport-height;
+    in property <length> rail-width;
+    in property <length> rail-height;
+
+    width: root.rail-width;
+    height: root.rail-height;
+    x: root.placement == CanvasRailPlacement.left ? CanvasGeometry.rail-edge-inset
+        : root.placement == CanvasRailPlacement.right ? root.viewport-width - root.width - CanvasGeometry.rail-edge-inset
+        : root.alignment == CanvasRailAlignment.start ? CanvasGeometry.rail-edge-inset
+        : root.viewport-width / 2 - root.width / 2;
+    // The top board rail keeps its header clearance; the other three edges use
+    // the shared max-area inset.
+    y: root.placement == CanvasRailPlacement.top ? CanvasGeometry.top-rail-offset
+        : root.placement == CanvasRailPlacement.bottom ? root.viewport-height - root.height - CanvasGeometry.rail-edge-inset
+        : root.viewport-height / 2 - root.height / 2;
+    background: transparent;
+    @children
+}
+
+export component CanvasRailSurface inherits GlassPanel {
+    in property <CanvasRailVariant> variant: CanvasRailVariant.normal;
+
+    // All four canvas rails use this one surface, including the canvas-name
+    // rail. It therefore owns their native scene backdrop blur.
+    blur-radius: WorkspacePalette.glass-blur;
+    rounded-radius: CanvasGeometry.rail-surface-radius;
+    outline-width: CanvasGeometry.rail-border-width;
+    outline: root.variant == CanvasRailVariant.normal
+        ? WorkspacePalette.glass-border
+        : WorkspacePalette.glass-border.with-alpha(0.72);
+    fill: root.variant == CanvasRailVariant.normal
+        ? WorkspacePalette.glass-fill
+        : WorkspacePalette.glass-fill.with-alpha(0.68);
+
+    @children
+}

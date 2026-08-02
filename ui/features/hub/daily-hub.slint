@@ -1,0 +1,260 @@
+import { ScrollView } from "std-widgets.slint";
+import { Borders, Colors, Motion, Spacing, Typography, Button, ButtonVariant } from "@UIKitSlint";
+import { Checkbox } from "@UIKitSlint";
+
+export struct HabitItem {
+    id: string,
+    name: string,
+    completed: bool,
+}
+
+export struct HubTaskItem {
+    id: string,
+    title: string,
+    completed: bool,
+}
+
+export component DailyHub inherits Rectangle {
+    in property <string> today-date-str: "Monday, July 20, 2026";
+    in property <string> greeting: "Welcome back, Riz";
+    in property <float> day-progress: 0.45; // 0.0 to 1.0
+
+    // Data models
+    in-out property <[HabitItem]> habits: [];
+    in-out property <[HubTaskItem]> tasks: [];
+    in-out property <string> quick-note-text: "";
+
+    // Callbacks
+    callback habit-toggled(string, bool);
+    callback task-toggled(string, bool);
+    callback save-quick-note(string);
+    callback open-today-journal;
+
+    background: Colors.paper-body;
+
+    VerticalLayout {
+        padding: Spacing.space-4;
+        spacing: Spacing.space-4;
+
+        // Header Greeting & Date
+        HorizontalLayout {
+            spacing: Spacing.space-3;
+            VerticalLayout {
+                spacing: Spacing.space-1;
+                Text {
+                    text: root.greeting;
+                    color: Colors.ink-headers;
+                    font-family: Typography.font-display;
+                    font-size: Typography.size-lg;
+                    font-weight: Typography.weight-bold;
+                }
+                Text {
+                    text: root.today-date-str;
+                    color: Colors.ink-muted;
+                    font-size: Typography.size-sm;
+                }
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            // Today's Progress bar
+            VerticalLayout {
+                alignment: center;
+                spacing: Spacing.space-1;
+                width: 180px;
+
+                HorizontalLayout {
+                    Text {
+                        text: "Today's Focus";
+                        color: Colors.ink-muted;
+                        font-size: Typography.size-xs;
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    Text {
+                        text: Math.round(root.day-progress * 100) + "%";
+                        color: Colors.primary;
+                        font-size: Typography.size-xs;
+                        font-weight: Typography.weight-semibold;
+                    }
+                }
+
+                // Progress Bar Track
+                Rectangle {
+                    height: 6px;
+                    background: Colors.paper-sunken;
+                    border-radius: 3px;
+
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * root.day-progress;
+                        height: parent.height;
+                        background: Colors.primary;
+                        border-radius: 3px;
+                    }
+                }
+            }
+        }
+
+        // Main Console Grid (Scrollable)
+        ScrollView {
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: Spacing.space-4;
+
+                // Left Column: Quick Notes & Journal Reference
+                VerticalLayout {
+                    width: 420px;
+                    spacing: Spacing.space-4;
+
+                    // Quick Notes block
+                    Rectangle {
+                        background: Colors.paper-surface;
+                        border-radius: Borders.radius-lg;
+                        border-width: Borders.width;
+                        border-color: Colors.border-subtle;
+                        padding: Spacing.space-4;
+
+                        VerticalLayout {
+                            spacing: Spacing.space-3;
+                            Text {
+                                text: "📝 Quick Thoughts";
+                                color: Colors.ink-headers;
+                                font-size: Typography.size-sm;
+                                font-weight: Typography.weight-semibold;
+                            }
+
+                            // Quick entry note container
+                            Rectangle {
+                                background: Colors.paper-sunken;
+                                border-radius: Borders.radius-md;
+                                height: 160px;
+                                padding: Spacing.space-2;
+
+                                text-input := TextInput {
+                                    width: parent.width;
+                                    height: parent.height;
+                                    text <=> root.quick-note-text;
+                                    color: Colors.ink-body;
+                                    font-size: Typography.size-sm;
+                                    wrap: word-wrap;
+                                }
+                            }
+
+                            HorizontalLayout {
+                                Button {
+                                    text: "Save Note";
+                                    variant: ButtonVariant.default;
+                                    clicked => { root.save-quick-note(root.quick-note-text); }
+                                }
+                                Rectangle { horizontal-stretch: 1; }
+                                Button {
+                                    text: "Open Journal";
+                                    variant: ButtonVariant.ghost;
+                                    clicked => { root.open-today-journal(); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Middle Column: Task Console
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: Spacing.space-4;
+
+                    Rectangle {
+                        background: Colors.paper-surface;
+                        border-radius: Borders.radius-lg;
+                        border-width: Borders.width;
+                        border-color: Colors.border-subtle;
+                        padding: Spacing.space-4;
+
+                        VerticalLayout {
+                            spacing: Spacing.space-3;
+                            Text {
+                                text: "🎯 Actions for Today";
+                                color: Colors.ink-headers;
+                                font-size: Typography.size-sm;
+                                font-weight: Typography.weight-semibold;
+                            }
+
+                            if root.tasks.length == 0: Text {
+                                text: "No pending tasks for today. Great job!";
+                                color: Colors.ink-muted;
+                                font-size: Typography.size-sm;
+                            }
+
+                            for task in root.tasks: HorizontalLayout {
+                                height: 36px;
+                                spacing: Spacing.space-2;
+
+                                Checkbox {
+                                    checked: task.completed;
+                                    toggled => { root.task-toggled(task.id, self.checked); }
+                                }
+
+                                Text {
+                                    text: task.title;
+                                    color: task.completed ? Colors.ink-disabled : Colors.ink-body;
+                                    font-size: Typography.size-sm;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right Column: Habit Rings & Checkmarks
+                VerticalLayout {
+                    width: 320px;
+                    spacing: Spacing.space-4;
+
+                    Rectangle {
+                        background: Colors.paper-surface;
+                        border-radius: Borders.radius-lg;
+                        border-width: Borders.width;
+                        border-color: Colors.border-subtle;
+                        padding: Spacing.space-4;
+
+                        VerticalLayout {
+                            spacing: Spacing.space-3;
+                            Text {
+                                text: "🔥 Habits Consistency";
+                                color: Colors.ink-headers;
+                                font-size: Typography.size-sm;
+                                font-weight: Typography.weight-semibold;
+                            }
+
+                            for habit in root.habits: HorizontalLayout {
+                                height: 36px;
+                                spacing: Spacing.space-3;
+
+                                Checkbox {
+                                    checked: habit.completed;
+                                    toggled => { root.habit-toggled(habit.id, self.checked); }
+                                }
+
+                                Text {
+                                    text: habit.name;
+                                    color: habit.completed ? Colors.ink-body : Colors.ink-muted;
+                                    font-size: Typography.size-sm;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+
+                                Text {
+                                    text: habit.completed ? "✓ Done" : "Todo";
+                                    color: habit.completed ? Colors.accent : Colors.ink-muted;
+                                    font-size: Typography.size-xs;
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

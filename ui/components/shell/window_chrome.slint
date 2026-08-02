@@ -1,0 +1,66 @@
+import { RetrospectIcon, RetrospectIconName } from "../icons/retrospect_icon.slint";
+import { WorkspaceChrome } from "../../theme/workspace_chrome.slint";
+import { WorkspaceMotion } from "../../theme/workspace_motion.slint";
+
+component WindowControlButton inherits Rectangle {
+    in property <RetrospectIconName> icon;
+    in property <string> label;
+    in property <bool> close-action: false;
+    callback clicked();
+
+    width: WorkspaceChrome.caption-control-size;
+    height: WorkspaceChrome.caption-control-size;
+    border-radius: 5px;
+    background: input.has-hover ? root.close-action ? #b91c1c : #ffffff14 : transparent;
+    animate background { duration: WorkspaceMotion.control-duration; easing: ease-out; }
+    RetrospectIcon {
+        x: (parent.width - WorkspaceChrome.caption-glyph-size) / 2;
+        y: (parent.height - WorkspaceChrome.caption-glyph-size) / 2;
+        width: WorkspaceChrome.caption-glyph-size;
+        height: WorkspaceChrome.caption-glyph-size;
+        icon: root.icon;
+        icon-color: input.has-hover && root.close-action ? #ffffff : #94a3b8;
+    }
+    input := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component WindowChrome inherits Rectangle {
+    callback minimize-requested();
+    callback maximize-requested();
+    callback close-requested();
+    callback drag-requested();
+
+    height: WorkspaceChrome.caption-rail-height;
+    background: #0a0c12;
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 10px;
+        spacing: 10px;
+        Text { text: "RETROSPECT"; color: #e2e8f0; font-size: 11px; font-weight: 750; letter-spacing: 1.3px; vertical-alignment: center; }
+        Text { text: "•  LAB"; color: #475569; font-size: 10px; vertical-alignment: center; }
+        Rectangle {
+            horizontal-stretch: 1;
+
+            TouchArea {
+                width: parent.width;
+                height: parent.height;
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                        root.drag-requested();
+                    }
+                }
+                double-clicked => { root.maximize-requested(); }
+            }
+        }
+        Text { text: "NATIVE WORKSPACE"; color: #475569; font-size: 10px; font-weight: 650; letter-spacing: 1px; vertical-alignment: center; }
+        WindowControlButton { icon: RetrospectIconName.remove; label: "Minimize"; clicked => { root.minimize-requested(); } }
+        WindowControlButton { icon: RetrospectIconName.window-maximize; label: "Maximize"; clicked => { root.maximize-requested(); } }
+        WindowControlButton { icon: RetrospectIconName.window-close; label: "Close"; close-action: true; clicked => { root.close-requested(); } }
+    }
+}

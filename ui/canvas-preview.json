@@ -1,0 +1,12 @@
+{
+  "nodes": [
+    { "id": "research", "title": "Research", "subtitle": "Signals and source material", "x": 120, "y": 180, "accent": "#3b82f6", "selected": false, "running": false },
+    { "id": "thesis", "title": "Thesis", "subtitle": "Decide the working direction", "x": 420, "y": 110, "accent": "#a855f7", "selected": false, "running": false },
+    { "id": "agent", "title": "Agent Run", "subtitle": "Three tasks in progress", "x": 740, "y": 210, "accent": "#14b8a6", "selected": true, "running": true },
+    { "id": "review", "title": "Review", "subtitle": "Awaiting operator decision", "x": 1040, "y": 130, "accent": "#f59e0b", "selected": false, "running": false },
+    { "id": "ship", "title": "Ship", "subtitle": "Publish the approved artifact", "x": 1060, "y": 420, "accent": "#22c55e", "selected": false, "running": false },
+    { "id": "risk", "title": "Risk", "subtitle": "One blocking dependency", "x": 640, "y": 480, "accent": "#ef4444", "selected": false, "running": false },
+    { "id": "notes", "title": "Notes", "subtitle": "Working context", "x": 280, "y": 500, "accent": "#64748b", "selected": false, "running": false }
+  ],
+  "wire-routes": []
+}

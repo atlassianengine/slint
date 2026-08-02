@@ -1,0 +1,288 @@
+import { Node } from "../../models.slint";
+import { CanvasNodeShell } from "canvas_node_shell.slint";
+import { Colors, Typography } from "@UIKitSlint";
+
+component DocumentNodeCard inherits Rectangle {
+    in property <string> title;
+    in property <bool> selected;
+    callback open-editor-requested();
+    background: root.selected ? Colors.paper-raised : transparent;
+    border-width: root.selected ? 1px : 0px;
+    border-color: Colors.accent;
+    Text {
+        x: 10px;
+        y: 8px;
+        width: parent.width - 20px;
+        height: parent.height - 16px;
+        text: root.title;
+        color: Colors.ink-body;
+        font-size: 13px;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+}
+
+component JournalNodeCard inherits Rectangle {
+    in property <string> date-str;
+    in property <bool> selected;
+    callback open-journal-requested();
+    background: root.selected ? Colors.paper-raised : transparent;
+    border-width: root.selected ? 1px : 0px;
+    border-color: Colors.accent;
+    Text {
+        x: 10px;
+        y: 8px;
+        width: parent.width - 20px;
+        height: parent.height - 16px;
+        text: root.date-str;
+        color: Colors.ink-body;
+        font-size: 13px;
+        vertical-alignment: center;
+    }
+}
+
+component NoteNodeCard inherits Rectangle {
+    in property <string> snippet;
+    in property <bool> selected;
+    background: root.selected ? Colors.paper-raised : transparent;
+    border-width: root.selected ? 1px : 0px;
+    border-color: Colors.accent;
+    Text {
+        x: 10px;
+        y: 8px;
+        width: parent.width - 20px;
+        height: parent.height - 16px;
+        text: root.snippet;
+        color: Colors.ink-body;
+        font-size: 13px;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+}
+
+component CanvasNodeSummary inherits Rectangle {
+    in property <Node> node;
+    in property <float> zoom: 1.0;
+
+    background: transparent;
+    VerticalLayout {
+        padding: 10px * root.zoom;
+        spacing: 6px * root.zoom;
+        Text {
+            text: root.node.subtitle;
+            color: Colors.ink-muted;
+            font-family: Typography.font-body;
+            font-size: 12px * root.zoom;
+            wrap: word-wrap;
+            vertical-stretch: 1;
+        }
+        Rectangle {
+            height: 12px * root.zoom;
+            background: transparent;
+            Rectangle {
+                x: 0px;
+                y: parent.height / 2 - 2.5px * root.zoom;
+                width: 5px * root.zoom;
+                height: 5px * root.zoom;
+                border-radius: 3px * root.zoom;
+                background: root.node.running ? root.node.accent : Colors.ink-muted.with-alpha(0.72);
+            }
+            Text {
+                x: 11px * root.zoom;
+                y: 0px;
+                width: parent.width - 11px * root.zoom;
+                height: parent.height;
+                text: root.node.running ? "RUNNING" : root.node.id;
+                color: root.node.running ? root.node.accent : Colors.ink-muted;
+                font-family: Typography.font-mono;
+                font-size: 10px * root.zoom;
+                overflow: elide;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component CanvasNodePort inherits Rectangle {
+    in property <Node> node;
+    in property <string> side;
+    in property <bool> connected;
+    in property <bool> reveal;
+    in property <float> zoom: 1.0;
+    in property <string> connection-source-id;
+
+    callback connection-begin(string, string);
+    pure callback connection-drag-data(string, string) -> data-transfer;
+    callback connection-drag-state(string, string, bool, length, length);
+    callback connection-drag-hover(string, string, bool, length, length);
+    callback connection-dropped(string, string, data-transfer);
+
+    width: 14px * root.zoom;
+    height: 14px * root.zoom;
+    border-radius: 7px * root.zoom;
+    visible: root.reveal || root.connected;
+    opacity: root.visible ? 1 : 0;
+    background: port-drag.dragging ? Colors.ink-inverse : root.node.accent;
+    border-width: port-drop.has-drag ? 2px * root.zoom : 1.5px * root.zoom;
+    border-color: port-drop.has-drag ? Colors.ink-inverse : Colors.paper-raised;
+    animate opacity, background, border-width, border-color { duration: 100ms; }
+
+    port-drop := DropArea {
+        x: -5px * root.zoom;
+        y: -5px * root.zoom;
+        width: parent.width + 10px * root.zoom;
+        height: parent.height + 10px * root.zoom;
+        enabled: root.connection-source-id != "" && root.connection-source-id != root.node.id;
+        can-drop(event) => {
+            root.connection-drag-hover(
+                root.node.id,
+                root.side,
+                true,
+                root.absolute-position.x + root.width / 2,
+                root.absolute-position.y + root.height / 2,
+            );
+            return DragAction.link;
+        }
+        dropped(event) => {
+            root.connection-dropped(root.node.id, root.side, event.data);
+            return DragAction.link;
+        }
+        changed has-drag => {
+            if !self.has-drag {
+                root.connection-drag-hover(root.node.id, root.side, false, 0px, 0px);
+            }
+        }
+    }
+
+    port-drag := DragArea {
+        width: parent.width;
+        height: parent.height;
+        allow-link: true;
+        data: root.connection-drag-data(root.node.id, root.side);
+        changed dragging => {
+            if self.dragging { root.connection-begin(root.node.id, root.side); }
+            root.connection-drag-state(
+                root.node.id,
+                root.side,
+                self.dragging,
+                root.absolute-position.x + root.width / 2,
+                root.absolute-position.y + root.height / 2,
+            );
+        }
+        drag-finished(action) => {
+            root.connection-drag-state(
+                root.node.id,
+                root.side,
+                false,
+                root.absolute-position.x + root.width / 2,
+                root.absolute-position.y + root.height / 2,
+            );
+        }
+        TouchArea {
+            width: parent.width;
+            height: parent.height;
+            mouse-cursor: port-drag.dragging ? grabbing : crosshair;
+        }
+    }
+}
+
+export component CanvasNode inherits Rectangle {
+    in property <Node> node;
+    in property <length> camera-x;
+    in property <length> camera-y;
+    in property <float> zoom;
+    in property <string> connection-source-id;
+    private property <length> drag-screen-dx: 0px;
+    private property <length> drag-screen-dy: 0px;
+    private property <bool> dragging: false;
+    private property <length> start-x;
+    private property <length> start-y;
+    callback selected(string);
+    callback node-toggled(string, bool);
+    callback dragged(string, float, float);
+    callback drag-finished(string, float, float);
+    callback connection-begin(string, string);
+    pure callback connection-drag-data(string, string) -> data-transfer;
+    callback connection-drag-state(string, string, bool, length, length);
+    callback connection-drag-hover(string, string, bool, length, length);
+    callback connection-dropped(string, string, data-transfer);
+
+    x: root.node.x * root.zoom * 1px + root.camera-x + (root.dragging ? root.drag-screen-dx : 0px);
+    y: root.node.y * root.zoom * 1px + root.camera-y + (root.dragging ? root.drag-screen-dy : 0px);
+    width: root.node.width * root.zoom * 1px;
+    height: root.node.height * root.zoom * 1px;
+    // Keep the general drag surface behind node-specific controls. Lattice card
+    // buttons remain interactive while non-interactive body regions still drag.
+    node-touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: root.dragging ? grabbing : grab;
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                root.start-x = self.absolute-position.x + self.mouse-x;
+                root.start-y = self.absolute-position.y + self.mouse-y;
+                root.drag-screen-dx = 0px;
+                root.drag-screen-dy = 0px;
+                root.dragging = true;
+                root.selected(root.node.id);
+                return;
+            }
+            if (event.kind == PointerEventKind.move && root.dragging) {
+                let pointer-x = self.absolute-position.x + self.mouse-x;
+                let pointer-y = self.absolute-position.y + self.mouse-y;
+                root.drag-screen-dx += pointer-x - root.start-x;
+                root.drag-screen-dy += pointer-y - root.start-y;
+                root.start-x = pointer-x;
+                root.start-y = pointer-y;
+                return;
+            }
+            if ((event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel) && root.dragging) {
+                root.dragging = false;
+                root.drag-finished(root.node.id, root.drag-screen-dx / 1px, root.drag-screen-dy / 1px);
+                root.drag-screen-dx = 0px;
+                root.drag-screen-dy = 0px;
+            }
+        }
+    }
+    CanvasNodeShell {
+        width: parent.width;
+        height: parent.height;
+        node: root.node;
+        hovered: node-touch.has-hover;
+        zoom: root.zoom;
+
+        if root.node.kind == "document_ref" : DocumentNodeCard {
+            width: parent.width;
+            height: parent.height;
+            title: root.node.title;
+            selected: root.node.selected;
+            open-editor-requested => { root.selected(root.node.id); }
+        }
+
+        if root.node.kind == "journal_ref" : JournalNodeCard {
+            width: parent.width;
+            height: parent.height;
+            date-str: root.node.title;
+            selected: root.node.selected;
+            open-journal-requested => { root.selected(root.node.id); }
+        }
+
+        if root.node.kind == "note_ref" : NoteNodeCard {
+            width: parent.width;
+            height: parent.height;
+            snippet: root.node.title;
+            selected: root.node.selected;
+        }
+
+        if root.node.kind != "document_ref" && root.node.kind != "journal_ref" && root.node.kind != "note_ref" : CanvasNodeSummary {
+            width: parent.width;
+            height: parent.height;
+            node: root.node;
+            zoom: root.zoom;
+        }
+    }
+    if root.node.left-port-enabled : CanvasNodePort { x: -7px * root.zoom; y: parent.height / 2 - 7px * root.zoom; node: root.node; side: "left"; connected: root.node.left-connected; reveal: node-touch.has-hover; zoom: root.zoom; connection-source-id: root.connection-source-id; connection-begin(id, side) => { root.connection-begin(id, side); } connection-drag-data(id, side) => { return root.connection-drag-data(id, side); } connection-drag-state(id, side, active, window-x, window-y) => { root.connection-drag-state(id, side, active, window-x, window-y); } connection-drag-hover(id, side, active, window-x, window-y) => { root.connection-drag-hover(id, side, active, window-x, window-y); } connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); } }
+    if root.node.right-port-enabled : CanvasNodePort { x: parent.width - 7px * root.zoom; y: parent.height / 2 - 7px * root.zoom; node: root.node; side: "right"; connected: root.node.right-connected; reveal: node-touch.has-hover; zoom: root.zoom; connection-source-id: root.connection-source-id; connection-begin(id, side) => { root.connection-begin(id, side); } connection-drag-data(id, side) => { return root.connection-drag-data(id, side); } connection-drag-state(id, side, active, window-x, window-y) => { root.connection-drag-state(id, side, active, window-x, window-y); } connection-drag-hover(id, side, active, window-x, window-y) => { root.connection-drag-hover(id, side, active, window-x, window-y); } connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); } }
+    if root.node.top-port-enabled : CanvasNodePort { x: parent.width / 2 - 7px * root.zoom; y: -7px * root.zoom; node: root.node; side: "top"; connected: root.node.top-connected; reveal: node-touch.has-hover; zoom: root.zoom; connection-source-id: root.connection-source-id; connection-begin(id, side) => { root.connection-begin(id, side); } connection-drag-data(id, side) => { return root.connection-drag-data(id, side); } connection-drag-state(id, side, active, window-x, window-y) => { root.connection-drag-state(id, side, active, window-x, window-y); } connection-drag-hover(id, side, active, window-x, window-y) => { root.connection-drag-hover(id, side, active, window-x, window-y); } connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); } }
+    if root.node.bottom-port-enabled : CanvasNodePort { x: parent.width / 2 - 7px * root.zoom; y: parent.height - 7px * root.zoom; node: root.node; side: "bottom"; connected: root.node.bottom-connected; reveal: node-touch.has-hover; zoom: root.zoom; connection-source-id: root.connection-source-id; connection-begin(id, side) => { root.connection-begin(id, side); } connection-drag-data(id, side) => { return root.connection-drag-data(id, side); } connection-drag-state(id, side, active, window-x, window-y) => { root.connection-drag-state(id, side, active, window-x, window-y); } connection-drag-hover(id, side, active, window-x, window-y) => { root.connection-drag-hover(id, side, active, window-x, window-y); } connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); } }
+}

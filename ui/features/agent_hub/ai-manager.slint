@@ -1,0 +1,329 @@
+import { ScrollView } from "std-widgets.slint";
+import { Borders, Colors, Spacing, Typography, Button, ButtonVariant, Input, ScrollArea } from "@UIKitSlint";
+import { ConnectionItem } from "../settings/settings-modal.slint";
+import { AgentProfileItem } from "agent-manager.slint";
+
+export component AIManager inherits Rectangle {
+    in property <[ConnectionItem]> connections: [];
+    in property <[AgentProfileItem]> agents: [];
+    in property <string> active-tab: "experts"; // "experts" | "rooms" | "providers"
+    in property <string> chat-log: "";
+    in-out property <string> chat-input: "";
+    in-out property <string> search-filter: "";
+
+    callback connect-provider-requested(string);
+    callback disconnect-provider-requested(string);
+    callback send-chat-message(string);
+    callback select-tab(string);
+    callback launch-debate-room-requested(string);
+    callback launch-research-room-requested(string);
+
+    background: Colors.paper-body;
+
+    VerticalLayout {
+        padding: Spacing.space-4;
+        spacing: Spacing.space-3;
+
+        // Top Title & Tab Switcher
+        HorizontalLayout {
+            spacing: Spacing.space-3;
+            alignment: space-between;
+
+            Text {
+                text: "Agent Hub & Expert Library";
+                color: Colors.ink-headers;
+                font-family: Typography.font-display;
+                font-size: Typography.size-md;
+                font-weight: Typography.weight-semibold;
+                vertical-alignment: center;
+            }
+
+            HorizontalLayout {
+                spacing: Spacing.space-2;
+
+                Button {
+                    text: "Experts & Agents";
+                    variant: root.active-tab == "experts" ? ButtonVariant.default : ButtonVariant.ghost;
+                    clicked => { root.select-tab("experts"); }
+                }
+
+                Button {
+                    text: "Debate & Research Rooms";
+                    variant: root.active-tab == "rooms" ? ButtonVariant.default : ButtonVariant.ghost;
+                    clicked => { root.select-tab("rooms"); }
+                }
+
+                Button {
+                    text: "Providers & CLI";
+                    variant: root.active-tab == "providers" ? ButtonVariant.default : ButtonVariant.ghost;
+                    clicked => { root.select-tab("providers"); }
+                }
+            }
+        }
+
+        // TAB 1: EXPERTS & AGENTS LIBRARY (NotebookLM Experts)
+        if root.active-tab == "experts": VerticalLayout {
+            spacing: Spacing.space-3;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: Spacing.space-3;
+                Input {
+                    text <=> root.search-filter;
+                    placeholder: "Filter experts by domain tag (e.g. slint, wgpu, rust)...";
+                    horizontal-stretch: 1;
+                }
+                Button {
+                    text: "+ New Expert / Research";
+                    variant: ButtonVariant.default;
+                    clicked => { root.launch-research-room-requested("new_expert"); }
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                background: Colors.paper-sunken;
+                border-radius: Borders.radius-md;
+                border-width: Borders.width;
+                border-color: Colors.border-subtle;
+
+                VerticalLayout {
+                    padding: Spacing.space-3;
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: Spacing.space-2;
+
+                            for agent in root.agents: Rectangle {
+                                height: 60px;
+                                background: Colors.paper-surface;
+                                border-radius: Borders.radius-md;
+                                border-width: Borders.width;
+                                border-color: Colors.border-subtle;
+
+                                HorizontalLayout {
+                                    padding-left: Spacing.space-4;
+                                    padding-right: Spacing.space-4;
+                                    spacing: Spacing.space-3;
+                                    alignment: center;
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+
+                                        HorizontalLayout {
+                                            spacing: Spacing.space-2;
+                                            Text {
+                                                text: agent.name;
+                                                color: Colors.ink-body;
+                                                font-size: Typography.size-sm;
+                                                font-weight: Typography.weight-semibold;
+                                            }
+                                            Rectangle {
+                                                background: #0ea5e9;
+                                                border-radius: 4px;
+                                                padding-left: 6px;
+                                                padding-right: 6px;
+                                                Text {
+                                                    text: agent.role;
+                                                    color: #ffffff;
+                                                    font-size: Typography.size-2xs;
+                                                    font-weight: Typography.weight-medium;
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "Status: " + agent.status + " | Chunks: " + agent.active-task-count;
+                                            color: Colors.ink-muted;
+                                            font-size: Typography.size-2xs;
+                                        }
+                                    }
+
+                                    Button {
+                                        text: "Inspect Expert";
+                                        variant: ButtonVariant.ghost;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // TAB 2: DEBATE ROOMS & RESEARCH ROOMS HUB
+        if root.active-tab == "rooms": VerticalLayout {
+            spacing: Spacing.space-3;
+            vertical-stretch: 1;
+
+            HorizontalLayout {
+                spacing: Spacing.space-3;
+                Button {
+                    text: "⚡ Launch Software Debate";
+                    variant: ButtonVariant.default;
+                    clicked => { root.launch-debate-room-requested("Software"); }
+                }
+                Button {
+                    text: "💼 Launch Business Debate";
+                    variant: ButtonVariant.default;
+                    clicked => { root.launch-debate-room-requested("Business"); }
+                }
+                Button {
+                    text: "📈 Launch Trading Debate";
+                    variant: ButtonVariant.default;
+                    clicked => { root.launch-debate-room-requested("Trading"); }
+                }
+                Button {
+                    text: "🔍 Launch Research Room";
+                    variant: ButtonVariant.secondary;
+                    clicked => { root.launch-research-room-requested("general"); }
+                }
+            }
+
+            Rectangle {
+                vertical-stretch: 1;
+                background: Colors.paper-sunken;
+                border-radius: Borders.radius-md;
+                border-width: Borders.width;
+                border-color: Colors.border-subtle;
+                padding: Spacing.space-3;
+
+                VerticalLayout {
+                    spacing: Spacing.space-2;
+                    Text {
+                        text: "Active & Concluded Room Sessions";
+                        color: Colors.ink-headers;
+                        font-size: Typography.size-sm;
+                        font-weight: Typography.weight-semibold;
+                    }
+                    Text {
+                        text: "Multi-agent debate rooms execute persona turns autonomously up to 15 turns or until consensus is synthesized.";
+                        color: Colors.ink-muted;
+                        font-size: Typography.size-xs;
+                    }
+                }
+            }
+        }
+
+        // TAB 3: PROVIDERS & CLI CONNECTIONS
+        if root.active-tab == "providers": VerticalLayout {
+            spacing: Spacing.space-3;
+            vertical-stretch: 1;
+
+            Rectangle {
+                vertical-stretch: 1;
+                background: Colors.paper-sunken;
+                border-radius: Borders.radius-md;
+                border-width: Borders.width;
+                border-color: Colors.border-subtle;
+
+                VerticalLayout {
+                    padding: Spacing.space-3;
+                    spacing: Spacing.space-2;
+
+                    Text {
+                        text: "Provider / CLI Connections";
+                        color: Colors.ink-muted;
+                        font-size: Typography.size-xs;
+                        font-weight: Typography.weight-semibold;
+                    }
+
+                    ScrollView {
+                        vertical-stretch: 1;
+                        VerticalLayout {
+                            spacing: Spacing.space-2;
+
+                            for conn in root.connections: Rectangle {
+                                height: 56px;
+                                background: Colors.paper-surface;
+                                border-radius: Borders.radius-md;
+                                border-width: Borders.width;
+                                border-color: Colors.border-subtle;
+
+                                HorizontalLayout {
+                                    padding-left: Spacing.space-4;
+                                    padding-right: Spacing.space-4;
+                                    spacing: Spacing.space-3;
+                                    alignment: center;
+
+                                    VerticalLayout {
+                                        alignment: center;
+                                        horizontal-stretch: 1;
+                                        spacing: 2px;
+                                        Text {
+                                            text: conn.name;
+                                            color: Colors.ink-body;
+                                            font-size: Typography.size-sm;
+                                            font-weight: Typography.weight-medium;
+                                        }
+                                        Text {
+                                            text: conn.status;
+                                            color: conn.connected ? Colors.status-success : Colors.ink-muted;
+                                            font-size: Typography.size-2xs;
+                                        }
+                                    }
+
+                                    Button {
+                                        text: conn.connected ? "Disconnect" : "Connect";
+                                        variant: conn.connected ? ButtonVariant.ghost : ButtonVariant.default;
+                                        clicked => {
+                                            if conn.connected {
+                                                root.disconnect-provider-requested(conn.id);
+                                            } else {
+                                                root.connect-provider-requested(conn.id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom Test Harness
+        Rectangle {
+            height: 120px;
+            background: Colors.paper-surface;
+            border-radius: Borders.radius-md;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+            padding: Spacing.space-3;
+
+            VerticalLayout {
+                spacing: Spacing.space-2;
+
+                Text {
+                    text: "Live Orchestrator & Room Stream Log";
+                    color: Colors.ink-headers;
+                    font-size: Typography.size-xs;
+                    font-weight: Typography.weight-semibold;
+                }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: Colors.paper-sunken;
+                    border-radius: Borders.radius-sm;
+                    border-width: Borders.width;
+                    border-color: Colors.border-subtle;
+                    padding: Spacing.space-2;
+
+                    ScrollArea {
+                        vertical-stretch: 1;
+                        Text {
+                            text: root.chat-log;
+                            color: Colors.ink-body;
+                            font-family: Typography.font-mono;
+                            font-size: Typography.size-2xs;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

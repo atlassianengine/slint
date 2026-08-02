@@ -1,0 +1,200 @@
+import { Colors, Typography, Controls } from "@UIKitSlint";
+import {
+    PlannerViewMode, PlannerItem, PlannerDayColumn, PlannerCalendarCell, PlannerYearSummary,
+    PlannerDragGhost
+} from "../../models.slint";
+import { DailyView } from "daily_view.slint";
+import { WeeklyView } from "weekly_view.slint";
+import { MonthlyView } from "monthly_view.slint";
+import { YearlyView } from "yearly_view.slint";
+
+export component PlannerWorkspace inherits Rectangle {
+    in property <PlannerViewMode> view-mode: PlannerViewMode.daily;
+    in property <string> header-title: "Monday, July 20, 2026";
+    in property <string> active-day-key: "2026-07-20";
+    in property <[string]> week-day-keys: ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26"];
+    in property <[PlannerDayColumn]> daily-columns: [];
+    in property <[PlannerDayColumn]> week-day-columns: [];
+    in property <[PlannerItem]> items;
+    in property <[PlannerCalendarCell]> month-cells;
+    in property <[PlannerYearSummary]> year-summaries;
+    in property <[PlannerCalendarCell]> year-cells: [];
+    in property <PlannerDragGhost> drag-ghost;
+
+    callback set-view-mode(PlannerViewMode);
+    callback navigate-prev();
+    callback navigate-next();
+    callback navigate-today();
+    callback item-selected(string);
+    callback open-day(string);
+    callback open-month(int);
+
+    background: Colors.paper-body;
+
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+
+        // Planner Header Toolbar
+        Rectangle {
+            height: 52px;
+            width: 100%;
+            background: Colors.paper-surface;
+            border-color: Colors.border-subtle;
+            border-width: 1px;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                alignment: space-between;
+
+                // Title & Date Controls
+                HorizontalLayout {
+                    spacing: 12px;
+                    alignment: center;
+
+                    Text {
+                        text: root.header-title;
+                        color: Colors.ink-body;
+                        font-size: 16px;
+                        font-weight: 700;
+                    }
+
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: prev-touch.has-hover ? Colors.paper-body : transparent;
+                        Text { width: parent.width; height: parent.height; text: "<"; color: Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-weight: 700; }
+                        prev-touch := TouchArea { clicked => { root.navigate-prev(); } }
+                    }
+
+                    Rectangle {
+                        width: 60px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: today-touch.has-hover ? Colors.paper-body : Colors.paper-surface;
+                        border-color: Colors.border-subtle;
+                        border-width: 1px;
+                        Text { width: parent.width; height: parent.height; text: "Today"; color: Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-size: 12px; font-weight: 600; }
+                        today-touch := TouchArea { clicked => { root.navigate-today(); } }
+                    }
+
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: next-touch.has-hover ? Colors.paper-body : transparent;
+                        Text { width: parent.width; height: parent.height; text: ">"; color: Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-weight: 700; }
+                        next-touch := TouchArea { clicked => { root.navigate-next(); } }
+                    }
+                }
+
+                // View Mode Switcher Tabs
+                HorizontalLayout {
+                    spacing: 4px;
+                    alignment: center;
+
+                    Rectangle {
+                        width: 56px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: root.view-mode == PlannerViewMode.daily ? Colors.primary : transparent;
+                        Text { width: parent.width; height: parent.height; text: "Day"; color: root.view-mode == PlannerViewMode.daily ? Colors.ink-inverse : Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-size: 12px; font-weight: 600; }
+                        TouchArea { clicked => { root.set-view-mode(PlannerViewMode.daily); } }
+                    }
+
+                    Rectangle {
+                        width: 56px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: root.view-mode == PlannerViewMode.weekly ? Colors.primary : transparent;
+                        Text { width: parent.width; height: parent.height; text: "Week"; color: root.view-mode == PlannerViewMode.weekly ? Colors.ink-inverse : Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-size: 12px; font-weight: 600; }
+                        TouchArea { clicked => { root.set-view-mode(PlannerViewMode.weekly); } }
+                    }
+
+                    Rectangle {
+                        width: 56px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: root.view-mode == PlannerViewMode.monthly ? Colors.primary : transparent;
+                        Text { width: parent.width; height: parent.height; text: "Month"; color: root.view-mode == PlannerViewMode.monthly ? Colors.ink-inverse : Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-size: 12px; font-weight: 600; }
+                        TouchArea { clicked => { root.set-view-mode(PlannerViewMode.monthly); } }
+                    }
+
+                    Rectangle {
+                        width: 56px;
+                        height: 32px;
+                        border-radius: 4px;
+                        background: root.view-mode == PlannerViewMode.yearly ? Colors.primary : transparent;
+                        Text { width: parent.width; height: parent.height; text: "Year"; color: root.view-mode == PlannerViewMode.yearly ? Colors.ink-inverse : Colors.ink-body; horizontal-alignment: center; vertical-alignment: center; font-size: 12px; font-weight: 600; }
+                        TouchArea { clicked => { root.set-view-mode(PlannerViewMode.yearly); } }
+                    }
+                }
+            }
+        }
+
+        // Active View Container
+        Rectangle {
+            width: 100%;
+            height: parent.height - 52px;
+
+            if root.view-mode == PlannerViewMode.daily : DailyView {
+                width: 100%;
+                height: 100%;
+                columns: root.daily-columns;
+                active-day-key: root.active-day-key;
+                item-selected(id) => { root.item-selected(id); }
+            }
+
+            if root.view-mode == PlannerViewMode.weekly : WeeklyView {
+                width: 100%;
+                height: 100%;
+                day-columns: root.week-day-columns;
+                active-day-key: root.active-day-key;
+                day-selected(day-key) => { root.open-day(day-key); }
+                item-selected(id) => { root.item-selected(id); }
+            }
+
+            if root.view-mode == PlannerViewMode.monthly : MonthlyView {
+                width: 100%;
+                height: 100%;
+                cells: root.month-cells;
+                items: root.items;
+                day-selected(day-key) => { root.open-day(day-key); }
+                item-selected(id) => { root.item-selected(id); }
+            }
+
+            if root.view-mode == PlannerViewMode.yearly : YearlyView {
+                width: 100%;
+                height: 100%;
+                year-summaries: root.year-summaries;
+                year-cells: root.year-cells;
+                month-selected(month) => { root.open-month(month); }
+            }
+        }
+    }
+
+    // Centralized Drag Ghost Preview Overlay
+    if root.drag-ghost.active : Rectangle {
+        x: root.drag-ghost.x;
+        y: root.drag-ghost.y;
+        width: root.drag-ghost.width;
+        height: root.drag-ghost.height;
+        background: root.drag-ghost.accent.with-alpha(0.35);
+        border-color: root.drag-ghost.accent;
+        border-width: 2px;
+        border-radius: 6px;
+
+        Text {
+            width: parent.width;
+            height: parent.height;
+            text: root.drag-ghost.title;
+            color: Colors.ink-body;
+            font-size: 12px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}

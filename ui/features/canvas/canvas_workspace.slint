@@ -1,0 +1,189 @@
+import { Node, WireRoute } from "../../models.slint";
+import { CanvasNode } from "canvas_node.slint";
+import { WorkspacePalette } from "../../theme/workspace_palette.slint";
+
+export component CanvasWorkspace inherits Rectangle {
+    in property <[Node]> nodes;
+    in property <[WireRoute]> wire-routes;
+    in property <image> canvas-backdrop;
+    in property <image> board-background-image;
+    in property <float> board-background-dim: 0.55;
+    in property <length> camera-x;
+    in property <length> camera-y;
+    in property <float> zoom;
+    callback node-selected(string);
+    callback node-toggled(string, bool);
+    callback node-dragged(string, float, float);
+    callback node-drag-finished(string, float, float);
+    callback connection-begin(string, string);
+    pure callback connection-drag-data(string, string) -> data-transfer;
+    callback connection-dropped(string, string, data-transfer);
+    callback box-selected(float, float, float, float);
+    callback camera-panned(float, float);
+    callback zoom-requested(float);
+    callback canvas-bounds-changed(float, float);
+    callback canvas-pointer-moved(float, float);
+    callback pointer-entered();
+
+    private property <bool> selecting: false;
+    private property <length> select-x: 0px;
+    private property <length> select-y: 0px;
+    private property <length> select-width: 0px;
+    private property <length> select-height: 0px;
+    private property <bool> connection-drag-active: false;
+    private property <string> connection-source-id: "";
+    private property <string> connection-target-id: "";
+    private property <length> connection-start-x: 0px;
+    private property <length> connection-start-y: 0px;
+    private property <length> connection-pointer-x: 0px;
+    private property <length> connection-pointer-y: 0px;
+
+    clip: true;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: #1f2937;
+    background: WorkspacePalette.canvas-input;
+    Image {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: root.board-background-image;
+        image-fit: cover;
+    }
+    Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: WorkspacePalette.canvas-input.with-alpha(root.board-background-dim);
+    }
+    Image {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        source: root.canvas-backdrop;
+        image-fit: fill;
+    }
+    changed width => { root.canvas-bounds-changed(self.width / 1px, self.height / 1px); }
+    changed height => { root.canvas-bounds-changed(self.width / 1px, self.height / 1px); }
+
+    TouchArea {
+        private property <length> start-x;
+        private property <length> start-y;
+        private property <bool> panning: false;
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: self.panning ? grabbing : default;
+        changed has-hover => {
+            if self.has-hover {
+                root.pointer-entered();
+            } else {
+                root.canvas-pointer-moved(-1, -1);
+            }
+        }
+        pointer-event(event) => {
+            if (event.kind == PointerEventKind.move) { root.canvas-pointer-moved(self.mouse-x / 1px, self.mouse-y / 1px); }
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) { self.start-x = self.mouse-x; self.start-y = self.mouse-y; self.panning = true; return; }
+            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) { root.selecting = true; root.select-x = self.mouse-x; root.select-y = self.mouse-y; root.select-width = 0px; root.select-height = 0px; return; }
+            if (event.kind == PointerEventKind.move && self.panning) { root.camera-panned((self.mouse-x - self.start-x) / 1px, (self.mouse-y - self.start-y) / 1px); self.start-x = self.mouse-x; self.start-y = self.mouse-y; return; }
+            if (event.kind == PointerEventKind.move && root.selecting) { root.select-width = self.mouse-x - root.select-x; root.select-height = self.mouse-y - root.select-y; return; }
+            if (event.kind == PointerEventKind.up && self.panning) { self.panning = false; return; }
+            if (event.kind == PointerEventKind.up && root.selecting) { root.selecting = false; root.box-selected(root.select-x / 1px, root.select-y / 1px, root.select-width / 1px, root.select-height / 1px); return; }
+            if (event.kind == PointerEventKind.cancel) { self.panning = false; root.selecting = false; }
+        }
+    }
+    DropArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: root.connection-drag-active;
+        can-drop(event) => {
+            root.connection-pointer-x = event.position.x;
+            root.connection-pointer-y = event.position.y;
+            root.connection-target-id = "";
+            return DragAction.link;
+        }
+        dropped(event) => {
+            root.connection-pointer-x = event.position.x;
+            root.connection-pointer-y = event.position.y;
+            return DragAction.none;
+        }
+    }
+    // Route commands stay in canvas-world space. The viewbox is the only
+    // camera projection, so each connector remains one continuous path.
+    for wire in root.wire-routes : Path {
+        x: wire.min-x * root.zoom * 1px + root.camera-x - 8px;
+        y: wire.min-y * root.zoom * 1px + root.camera-y - 8px;
+        width: wire.width * root.zoom * 1px + 16px;
+        height: wire.height * root.zoom * 1px + 16px;
+        viewbox-x: wire.min-x - 8 / root.zoom;
+        viewbox-y: wire.min-y - 8 / root.zoom;
+        viewbox-width: wire.width + 16 / root.zoom;
+        viewbox-height: wire.height + 16 / root.zoom;
+        fit: fill;
+        commands: wire.commands;
+        stroke: @linear-gradient(wire.gradient-angle * 1deg, wire.source-accent.with-alpha(0.22), wire.target-accent.with-alpha(0.22));
+        stroke-width: 10px;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        anti-alias: true;
+    }
+    for wire in root.wire-routes : Path {
+        x: wire.min-x * root.zoom * 1px + root.camera-x - 8px;
+        y: wire.min-y * root.zoom * 1px + root.camera-y - 8px;
+        width: wire.width * root.zoom * 1px + 16px;
+        height: wire.height * root.zoom * 1px + 16px;
+        viewbox-x: wire.min-x - 8 / root.zoom;
+        viewbox-y: wire.min-y - 8 / root.zoom;
+        viewbox-width: wire.width + 16 / root.zoom;
+        viewbox-height: wire.height + 16 / root.zoom;
+        fit: fill;
+        commands: wire.commands;
+        stroke: @linear-gradient(wire.gradient-angle * 1deg, wire.source-accent, wire.target-accent);
+        stroke-width: 3px;
+        stroke-line-cap: round;
+        stroke-line-join: round;
+        anti-alias: true;
+    }
+    if root.connection-drag-active : Path { x: 0px; y: 0px; width: parent.width; height: parent.height; viewbox-width: parent.width / 1px; viewbox-height: parent.height / 1px; fit: fill; stroke: #38bdfc33; stroke-width: 10px; stroke-line-cap: round; anti-alias: true; MoveTo { x: root.connection-start-x / 1px; y: root.connection-start-y / 1px; } CubicTo { control-1-x: root.connection-start-x / 1px + max(60, abs(root.connection-pointer-x - root.connection-start-x) / 1px * 0.45); control-1-y: root.connection-start-y / 1px; control-2-x: root.connection-pointer-x / 1px - max(60, abs(root.connection-pointer-x - root.connection-start-x) / 1px * 0.45); control-2-y: root.connection-pointer-y / 1px; x: root.connection-pointer-x / 1px; y: root.connection-pointer-y / 1px; } }
+    if root.connection-drag-active : Path { x: 0px; y: 0px; width: parent.width; height: parent.height; viewbox-width: parent.width / 1px; viewbox-height: parent.height / 1px; fit: fill; stroke: root.connection-target-id == "" ? #38bdfc : #f8fafc; stroke-width: 3px; stroke-line-cap: round; anti-alias: true; MoveTo { x: root.connection-start-x / 1px; y: root.connection-start-y / 1px; } CubicTo { control-1-x: root.connection-start-x / 1px + max(60, abs(root.connection-pointer-x - root.connection-start-x) / 1px * 0.45); control-1-y: root.connection-start-y / 1px; control-2-x: root.connection-pointer-x / 1px - max(60, abs(root.connection-pointer-x - root.connection-start-x) / 1px * 0.45); control-2-y: root.connection-pointer-y / 1px; x: root.connection-pointer-x / 1px; y: root.connection-pointer-y / 1px; } }
+    for node in root.nodes : CanvasNode {
+        node: node;
+        camera-x: root.camera-x;
+        camera-y: root.camera-y;
+        zoom: root.zoom;
+        connection-source-id: root.connection-source-id;
+        selected(id) => { root.node-selected(id); }
+        node-toggled(id, val) => { root.node-toggled(id, val); }
+        dragged(id, dx, dy) => { root.node-dragged(id, dx, dy); }
+        drag-finished(id, dx, dy) => { root.node-drag-finished(id, dx, dy); }
+        connection-begin(id, side) => { root.connection-begin(id, side); }
+        connection-drag-data(id, side) => { return root.connection-drag-data(id, side); }
+        connection-drag-state(id, side, active, window-x, window-y) => {
+            root.connection-drag-active = active;
+            root.connection-source-id = active ? id : "";
+            root.connection-target-id = "";
+            if active {
+                root.connection-start-x = window-x - root.absolute-position.x;
+                root.connection-start-y = window-y - root.absolute-position.y;
+                root.connection-pointer-x = root.connection-start-x;
+                root.connection-pointer-y = root.connection-start-y;
+            }
+        }
+        connection-drag-hover(id, side, active, window-x, window-y) => {
+            root.connection-target-id = active ? id : "";
+            if active {
+                root.connection-pointer-x = window-x - root.absolute-position.x;
+                root.connection-pointer-y = window-y - root.absolute-position.y;
+            }
+        }
+        connection-dropped(id, side, data) => {
+            root.connection-drag-active = false;
+            root.connection-source-id = "";
+            root.connection-target-id = "";
+            root.connection-dropped(id, side, data);
+        }
+    }
+    if root.selecting : Rectangle { x: root.select-width < 0px ? root.select-x + root.select-width : root.select-x; y: root.select-height < 0px ? root.select-y + root.select-height : root.select-y; width: abs(root.select-width); height: abs(root.select-height); background: #38bdfc22; border-width: 1px; border-color: #7dd3fc; border-radius: 8px; }
+}

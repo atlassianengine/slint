@@ -1,0 +1,134 @@
+import { Borders, Colors, Motion, Spacing, Typography, Button, ButtonVariant, Input } from "@UIKitSlint";
+
+export component NewSubspaceModal inherits Rectangle {
+    in-out property <bool> open: false;
+
+    // Form inputs
+    in-out property <string> subspace-name: "";
+    in-out property <string> subspace-path: "";
+    in-out property <string> tenant-id: "tenant-default";
+    in-out property <string> user-id: "user-riz";
+    in-out property <string> sub-board-id: "board-canvas-main";
+
+    // Callbacks
+    callback select-folder-requested();
+    callback create-requested(string, string, string, string, string); // name, path, tenant, user, board
+
+    visible: root.open;
+    z: 110;
+
+    // Overlay background
+    Rectangle {
+        background: #090d16a0;
+        TouchArea {
+            // Dismiss on click outside modal
+            clicked => { root.open = false; }
+        }
+    }
+
+    // Modal dialog
+    Rectangle {
+        width: 480px;
+        height: 480px;
+        background: Colors.paper-surface;
+        border-radius: Borders.radius-lg;
+        border-width: Borders.width;
+        border-color: Colors.border-subtle;
+        clip: true;
+
+        VerticalLayout {
+            padding: Spacing.space-4;
+            spacing: Spacing.space-3;
+
+            // Header
+            HorizontalLayout {
+                Text {
+                    text: "✨ Create New Subspace";
+                    color: Colors.ink-headers;
+                    font-family: Typography.font-display;
+                    font-size: Typography.size-md;
+                    font-weight: Typography.weight-semibold;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Button {
+                    text: "✕";
+                    variant: ButtonVariant.ghost;
+                    clicked => { root.open = false; }
+                }
+            }
+
+            Rectangle { height: 1px; background: Colors.border-subtle; }
+
+            // Fields
+            VerticalLayout {
+                spacing: Spacing.space-2;
+                vertical-stretch: 1;
+
+                Text { text: "Subspace Name"; color: Colors.ink-muted; font-size: Typography.size-xs; }
+                Input {
+                    text <=> root.subspace-name;
+                    placeholder: "e.g. My Workspace Project";
+                }
+
+                Text { text: "Local Path / Directory"; color: Colors.ink-muted; font-size: Typography.size-xs; }
+                HorizontalLayout {
+                    spacing: Spacing.space-2;
+                    Input {
+                        text <=> root.subspace-path;
+                        placeholder: "D:/App Dev/my-workspace";
+                        horizontal-stretch: 1;
+                    }
+                    Button {
+                        text: "Browse...";
+                        variant: ButtonVariant.secondary;
+                        clicked => { root.select-folder-requested(); }
+                    }
+                }
+
+                Text { text: "Tenant ID"; color: Colors.ink-muted; font-size: Typography.size-xs; }
+                Input {
+                    text <=> root.tenant-id;
+                }
+
+                Text { text: "User ID"; color: Colors.ink-muted; font-size: Typography.size-xs; }
+                Input {
+                    text <=> root.user-id;
+                }
+
+                Text { text: "Sub-Board ID"; color: Colors.ink-muted; font-size: Typography.size-xs; }
+                Input {
+                    text <=> root.sub-board-id;
+                }
+            }
+
+            Rectangle { height: 1px; background: Colors.border-subtle; }
+
+            // Actions
+            HorizontalLayout {
+                spacing: Spacing.space-3;
+                alignment: end;
+
+                Button {
+                    text: "Cancel";
+                    variant: ButtonVariant.ghost;
+                    clicked => { root.open = false; }
+                }
+
+                Button {
+                    text: "Create Subspace";
+                    variant: ButtonVariant.default;
+                    clicked => {
+                        root.create-requested(
+                            root.subspace-name,
+                            root.subspace-path,
+                            root.tenant-id,
+                            root.user-id,
+                            root.sub-board-id
+                        );
+                        root.open = false;
+                    }
+                }
+            }
+        }
+    }
+}

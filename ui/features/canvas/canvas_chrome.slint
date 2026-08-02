@@ -1,0 +1,155 @@
+import { Node, WireRoute } from "../../models.slint";
+import {
+    CanvasRailAlignment,
+    CanvasRailHost,
+    CanvasRailPlacement,
+    CanvasRailSurface,
+    CanvasRailVariant,
+} from "chrome/canvas_rail.slint";
+import { CanvasRailButton } from "chrome/canvas_rail_button.slint";
+import { CanvasGeometry } from "chrome/canvas_geometry.slint";
+import { RetrospectIconName } from "../../components/icons/retrospect_icon.slint";
+import { CanvasWorkspace } from "canvas_workspace.slint";
+
+export component CanvasChrome inherits Rectangle {
+    in property <[Node]> nodes;
+    in property <[WireRoute]> wire-routes;
+    in property <image> canvas-backdrop;
+    in property <image> board-background-image;
+    in property <float> board-background-dim: 0.55;
+    in property <length> camera-x;
+    in property <length> camera-y;
+    in property <float> zoom;
+    callback node-selected(string);
+    callback node-toggled(string, bool);
+    callback node-dragged(string, float, float);
+    callback node-drag-finished(string, float, float);
+    callback connection-begin(string, string);
+    pure callback connection-drag-data(string, string) -> data-transfer;
+    callback connection-dropped(string, string, data-transfer);
+    callback box-selected(float, float, float, float);
+    callback camera-panned(float, float);
+    callback zoom-requested(float);
+    callback canvas-bounds-changed(float, float);
+    callback canvas-pointer-moved(float, float);
+    callback pointer-entered();
+    callback properties-opened();
+
+    CanvasWorkspace {
+        width: parent.width;
+        height: parent.height;
+        nodes: root.nodes;
+        wire-routes: root.wire-routes;
+        canvas-backdrop: root.canvas-backdrop;
+        board-background-image: root.board-background-image;
+        board-background-dim: root.board-background-dim;
+        camera-x: root.camera-x;
+        camera-y: root.camera-y;
+        zoom: root.zoom;
+        node-selected(id) => { root.node-selected(id); }
+        node-toggled(id, val) => { root.node-toggled(id, val); }
+        node-dragged(id, dx, dy) => { root.node-dragged(id, dx, dy); }
+        node-drag-finished(id, dx, dy) => { root.node-drag-finished(id, dx, dy); }
+        connection-begin(id, side) => { root.connection-begin(id, side); }
+        connection-drag-data(id, side) => { return root.connection-drag-data(id, side); }
+        connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); }
+        box-selected(x, y, width, height) => { root.box-selected(x, y, width, height); }
+        camera-panned(dx, dy) => { root.camera-panned(dx, dy); }
+        zoom-requested(delta) => { root.zoom-requested(delta); }
+        canvas-bounds-changed(width, height) => { root.canvas-bounds-changed(width, height); }
+        canvas-pointer-moved(x, y) => { root.canvas-pointer-moved(x, y); }
+        pointer-entered => { root.pointer-entered(); }
+    }
+
+    CanvasRailHost {
+        placement: CanvasRailPlacement.top;
+        alignment: CanvasRailAlignment.start;
+        viewport-width: root.width;
+        viewport-height: root.height;
+        rail-width: 236px;
+        rail-height: CanvasGeometry.rail-surface-height;
+        CanvasRailSurface {
+            width: parent.width;
+            height: parent.height;
+            variant: CanvasRailVariant.ghost;
+            HorizontalLayout {
+                padding: CanvasGeometry.rail-padding;
+                spacing: CanvasGeometry.rail-gap;
+                alignment: start;
+                CanvasRailButton { icon: RetrospectIconName.canvas; label: "Board"; active: true; }
+                Text { text: "Retrospect Canvas"; width: 106px; color: #e2e8f0; font-size: 11px; font-weight: 700; vertical-alignment: center; }
+                CanvasRailButton { icon: RetrospectIconName.remove; label: "Zoom out"; clicked => { root.zoom-requested(-0.1); } }
+                CanvasRailButton { icon: RetrospectIconName.add; label: "Zoom in"; clicked => { root.zoom-requested(0.1); } }
+            }
+        }
+    }
+
+    CanvasRailHost {
+        placement: CanvasRailPlacement.left;
+        viewport-width: root.width;
+        viewport-height: root.height;
+        rail-width: 44px;
+        rail-height: CanvasGeometry.left-side-rail-height;
+        CanvasRailSurface {
+            width: parent.width;
+            height: parent.height;
+            VerticalLayout {
+                padding: CanvasGeometry.rail-padding;
+                spacing: CanvasGeometry.rail-gap;
+                alignment: center;
+                CanvasRailButton { icon: RetrospectIconName.summary; label: "Summary"; active: true; }
+                CanvasRailButton { icon: RetrospectIconName.wiki; label: "Wiki"; }
+                CanvasRailButton { icon: RetrospectIconName.mockups; label: "Mockups"; }
+                CanvasRailButton { icon: RetrospectIconName.discovery; label: "3D Studio"; }
+                CanvasRailButton { icon: RetrospectIconName.notifications; label: "Social Studio"; }
+                CanvasRailButton { icon: RetrospectIconName.dashboard; label: "SEO Studio"; }
+            }
+        }
+    }
+
+    CanvasRailHost {
+        placement: CanvasRailPlacement.right;
+        viewport-width: root.width;
+        viewport-height: root.height;
+        rail-width: 44px;
+        rail-height: CanvasGeometry.right-side-rail-height;
+        CanvasRailSurface {
+            width: parent.width;
+            height: parent.height;
+            VerticalLayout {
+                padding: CanvasGeometry.rail-padding;
+                spacing: CanvasGeometry.rail-gap;
+                alignment: center;
+                CanvasRailButton { icon: RetrospectIconName.ai; label: "Orchestrator"; active: true; }
+                CanvasRailButton { icon: RetrospectIconName.browser; label: "Browser"; }
+                CanvasRailButton { icon: RetrospectIconName.git; label: "Git"; }
+                CanvasRailButton { icon: RetrospectIconName.properties; label: "Properties"; clicked => { root.properties-opened(); } }
+                CanvasRailButton { icon: RetrospectIconName.approvals; label: "Approvals"; }
+                CanvasRailButton { icon: RetrospectIconName.activity; label: "Activity"; }
+                CanvasRailButton { icon: RetrospectIconName.deployments; label: "Deployments"; }
+            }
+        }
+    }
+
+    CanvasRailHost {
+        placement: CanvasRailPlacement.bottom;
+        viewport-width: root.width;
+        viewport-height: root.height;
+        rail-width: 184px;
+        rail-height: CanvasGeometry.rail-surface-height;
+        CanvasRailSurface {
+            width: parent.width;
+            height: parent.height;
+            HorizontalLayout {
+                padding: CanvasGeometry.rail-padding;
+                spacing: CanvasGeometry.rail-gap;
+                alignment: start;
+                CanvasRailButton { icon: RetrospectIconName.nodes; label: "Nodes"; active: true; }
+                CanvasRailButton { icon: RetrospectIconName.draw; label: "Draw"; }
+                Rectangle { width: 1px; height: 22px; background: #263244; }
+                CanvasRailButton { icon: RetrospectIconName.add; label: "Create node"; }
+                Text { text: "Add node"; width: 52px; color: #94a3b8; font-size: 10px; vertical-alignment: center; }
+            }
+        }
+    }
+}

@@ -1,0 +1,351 @@
+import {
+    Node, WireRoute, WorkbenchSurface,
+    SubspaceItem, NavigatorFileItem,
+} from "models.slint";
+import { ConnectionItem } from "features/settings/settings-modal.slint";
+import { ExecutionEnvelopeItem } from "features/agent_hub/orchestrator-panel.slint";
+import { AgentProfileItem } from "features/agent_hub/agent-manager.slint";
+import { MCPServerItem } from "features/agent_hub/mcp-manager.slint";
+import { SkillItem } from "features/agent_hub/skills-manager.slint";
+import { WorkbenchShell } from "layouts/workbench_shell.slint";
+import {
+    ThemeSelection, Borders, Colors, Typography, Spacing, Motion, Shadows,
+    Controls, Focus, Overlays, Skeletons,
+    CodeEditorDocument, CodeEditorSaveState,
+} from "@UIKitSlint";
+import { WorkspacePalette } from "theme/workspace_palette.slint";
+import { BoardPropertiesSheet } from "features/canvas/board_properties_sheet.slint";
+import { NewSubspaceModal } from "features/subspaces/new-subspace-modal.slint";
+import {
+    LatticeLayoutPage, LatticeSelection, LatticeTextReplacementIntent,
+} from "@LatticeSlint";
+
+import {
+    PlannerViewMode, PlannerItem, PlannerDayColumn, PlannerCalendarCell, PlannerYearSummary, PlannerDragGhost,
+} from "models.slint";
+import { HabitItem, HubTaskItem } from "features/hub/daily-hub.slint";
+
+export {
+    Node, WireRoute, WorkbenchSurface,
+    ConnectionItem, ExecutionEnvelopeItem, AgentProfileItem, MCPServerItem, SkillItem,
+    PlannerViewMode, PlannerItem, PlannerDayColumn, PlannerCalendarCell, PlannerYearSummary, PlannerDragGhost,
+    CodeEditorDocument, CodeEditorSaveState,
+    ThemeSelection, Borders, Colors, Typography, Spacing, Motion, Shadows,
+    Controls, Focus, Overlays, Skeletons, WorkspacePalette,
+    LatticeLayoutPage, LatticeSelection, LatticeTextReplacementIntent,
+    HabitItem, HubTaskItem,
+    SubspaceItem, NavigatorFileItem,
+}
+
+export component AppWindow inherits Window {
+    preferred-width: 1440px;
+    preferred-height: 900px;
+    min-width: 960px;
+    min-height: 640px;
+    title: "Retrospect — native workbench";
+    no-frame: true;
+    resize-border-width: 6px;
+    background: Colors.paper-body;
+    // Set from Rust at process start. This makes it impossible to mistake a
+    // slow debug run for the optimized executable during visual profiling.
+    in property <string> build-mode: "DEBUG";
+    in property <string> search-shadow-status: "STARTING";
+    in property <string> search-shadow-active-slot: "";
+    in property <int> search-shadow-pending: 0;
+    in property <bool> search-shadow-maintenance: false;
+    in property <int> rag-search-result-count: 0;
+    in property <string> rag-search-preview: "";
+    in property <[Node]> nodes;
+    in property <[WireRoute]> wire-routes;
+    in property <image> canvas-backdrop;
+    in property <image> board-background-image;
+    in property <string> board-background-path;
+    in property <float> board-background-dim: 0.55;
+    in-out property <length> camera-x: 0px;
+    in-out property <length> camera-y: 0px;
+    in-out property <float> zoom: 1;
+    in-out property <WorkbenchSurface> active-surface: WorkbenchSurface.canvas;
+    in property <CodeEditorDocument> editor-document: {
+        id: "",
+        title: "Untitled",
+        language: "Text",
+        read-only: false,
+        save-state: CodeEditorSaveState.clean,
+        status-message: "Ready",
+    };
+    in-out property <string> editor-text: "";
+    in property <[int]> editor-line-numbers: [];
+    in property <string> document-title: "Native document engine";
+    in property <[LatticeLayoutPage]> document-pages: [];
+    in property <LatticeSelection> document-selection: { block-id: "", anchor: 0, focus: 0 };
+    in property <bool> document-can-undo: false;
+    in property <bool> document-can-redo: false;
+    in property <PlannerViewMode> planner-view-mode: PlannerViewMode.daily;
+    in property <string> planner-header-title: "Monday, July 20, 2026";
+    in property <string> planner-active-day-key: "2026-07-20";
+    in property <[string]> planner-week-day-keys: ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26"];
+    in property <[PlannerDayColumn]> planner-week-day-columns: [];
+    in property <[PlannerDayColumn]> planner-daily-columns: [];
+    in property <[PlannerItem]> planner-items: [];
+    in property <[PlannerCalendarCell]> planner-month-cells: [];
+    in property <[PlannerYearSummary]> planner-year-summaries: [];
+    in property <[PlannerCalendarCell]> planner-year-cells: [];
+    in property <PlannerDragGhost> planner-drag-ghost: { active: false, title: "", x: 0px, y: 0px, width: 0px, height: 0px };
+    in-out property <[HabitItem]> hub-habits: [];
+    in-out property <[HubTaskItem]> hub-tasks: [];
+    in-out property <string> hub-quick-note-text: "";
+    in property <string> hub-greeting: "Welcome back, Riz";
+    in property <float> hub-day-progress: 0.0;
+    in property <string> hub-today-date-str: "Monday, July 20, 2026";
+    in property <[ConnectionItem]> settings-connections: [];
+    in-out property <string> settings-active-tab: "appearance";
+    in-out property <string> settings-active-theme-id: "retrospect";
+    in-out property <string> settings-active-ai-provider: "gemini";
+    in-out property <string> settings-gemini-api-key: "";
+    in-out property <string> settings-claude-api-key: "";
+    in-out property <string> settings-openai-api-key: "";
+    in-out property <string> settings-turso-db-url: "";
+    in-out property <string> settings-turso-auth-token: "";
+    in property <string> settings-vault-status-text: "Disconnected";
+    in property <[ExecutionEnvelopeItem]> orchestrator-envelopes: [];
+    in property <string> orchestrator-active-agent-name: "Developer Intelligence Agent";
+    in property <string> orchestrator-execution-status: "idle";
+    in property <float> orchestrator-run-progress: 0.0;
+    in property <string> orchestrator-active-log-output: "[System] Orchestrator idle.";
+    in property <[AgentProfileItem]> orchestrator-agents: [];
+    in property <string> orchestrator-selected-agent-id: "";
+    in property <[MCPServerItem]> orchestrator-mcp-servers: [];
+    in property <[SkillItem]> orchestrator-skills: [];
+    in-out property <string> orchestrator-selected-skill-id: "";
+    in property <string> orchestrator-active-skill-instructions: "";
+
+    callback hub-habit-toggled(string, bool);
+    callback hub-task-toggled(string, bool);
+    callback hub-save-quick-note(string);
+    callback hub-open-today-journal();
+    callback settings-theme-selected(string);
+    callback settings-connect-provider-requested(string);
+    callback settings-disconnect-provider-requested(string);
+    callback settings-save-ai-keys-requested();
+    callback settings-close-requested();
+    callback orchestrator-run-requested();
+    callback orchestrator-cancel-execution-requested(string);
+    callback orchestrator-agent-selected(string);
+    callback orchestrator-create-agent-requested();
+    callback orchestrator-add-mcp-server-requested();
+    callback orchestrator-ping-mcp-server-requested(string);
+    callback orchestrator-skill-selected(string);
+    callback orchestrator-ai-chat-requested(string);
+
+    // Subspace Properties
+    in property <[SubspaceItem]> navigator-subspaces: [];
+    in property <[NavigatorFileItem]> navigator-files: [];
+    in-out property <bool> new-subspace-modal-open: false;
+
+    // Subspace Callbacks
+    callback navigator-subspace-selected(string);
+    callback navigator-file-clicked(string);
+    callback new-subspace-create-requested(string, string, string, string, string);
+    callback new-subspace-browse-folder-requested();
+
+    callback planner-set-view-mode(PlannerViewMode);
+    callback planner-navigate-prev();
+    callback planner-navigate-next();
+    callback planner-navigate-today();
+    callback planner-item-selected(string);
+    callback planner-open-day(string);
+    callback planner-open-month(int);
+    callback node-selected(string);
+    callback node-toggled(string, bool);
+    callback node-dragged(string, float, float);
+    callback node-drag-finished(string, float, float);
+    callback connection-begin(string, string);
+    pure callback connection-drag-data(string, string) -> data-transfer;
+    callback connection-dropped(string, string, data-transfer);
+    callback box-selected(float, float, float, float);
+    callback camera-panned(float, float);
+    callback zoom-requested(float);
+    callback canvas-bounds-changed(float, float);
+    callback canvas-pointer-moved(float, float);
+    callback canvas-background-select-requested();
+    callback canvas-background-clear-requested();
+    callback canvas-background-dim-changed(float);
+    callback minimize-requested();
+    callback maximize-requested();
+    callback close-requested();
+    callback window-drag-requested();
+    callback editor-text-changed(string);
+    callback editor-save-requested();
+    callback editor-revert-requested();
+    callback document-text-replacement-requested(LatticeTextReplacementIntent);
+    callback document-selection-changed(string, int, int, string);
+    callback document-undo-requested();
+    callback document-redo-requested();
+    callback memory-index-requested(string, string);
+    callback rag-search-requested(string);
+    callback search-shadow-rebuild-requested();
+
+    private property <bool> board-properties-open: false;
+
+    WorkbenchShell {
+        width: parent.width;
+        height: parent.height;
+        nodes: root.nodes;
+        wire-routes: root.wire-routes;
+        canvas-backdrop: root.canvas-backdrop;
+        board-background-image: root.board-background-image;
+        board-background-dim: root.board-background-dim;
+        camera-x: root.camera-x;
+        camera-y: root.camera-y;
+        zoom: root.zoom;
+        active-surface <=> root.active-surface;
+        editor-document: root.editor-document;
+        editor-text <=> root.editor-text;
+        editor-line-numbers: root.editor-line-numbers;
+        document-title: root.document-title;
+        document-pages: root.document-pages;
+        document-selection: root.document-selection;
+        document-can-undo: root.document-can-undo;
+        document-can-redo: root.document-can-redo;
+        planner-view-mode: root.planner-view-mode;
+        planner-header-title: root.planner-header-title;
+        planner-active-day-key: root.planner-active-day-key;
+        planner-week-day-keys: root.planner-week-day-keys;
+        planner-week-day-columns: root.planner-week-day-columns;
+        planner-daily-columns: root.planner-daily-columns;
+        planner-items: root.planner-items;
+        planner-month-cells: root.planner-month-cells;
+        planner-year-summaries: root.planner-year-summaries;
+        planner-year-cells: root.planner-year-cells;
+        planner-drag-ghost: root.planner-drag-ghost;
+        hub-habits <=> root.hub-habits;
+        hub-tasks <=> root.hub-tasks;
+        hub-quick-note-text <=> root.hub-quick-note-text;
+        hub-greeting: root.hub-greeting;
+        hub-day-progress: root.hub-day-progress;
+        hub-today-date-str: root.hub-today-date-str;
+        settings-connections: root.settings-connections;
+        settings-active-tab <=> root.settings-active-tab;
+        settings-active-theme-id <=> root.settings-active-theme-id;
+        settings-active-ai-provider <=> root.settings-active-ai-provider;
+        settings-gemini-api-key <=> root.settings-gemini-api-key;
+        settings-claude-api-key <=> root.settings-claude-api-key;
+        settings-openai-api-key <=> root.settings-openai-api-key;
+        settings-turso-db-url <=> root.settings-turso-db-url;
+        settings-turso-auth-token <=> root.settings-turso-auth-token;
+        settings-vault-status-text: root.settings-vault-status-text;
+        settings-theme-selected(theme_id) => { root.settings-theme-selected(theme_id); }
+        settings-connect-provider-requested(provider_id) => { root.settings-connect-provider-requested(provider_id); }
+        settings-disconnect-provider-requested(provider_id) => { root.settings-disconnect-provider-requested(provider_id); }
+        settings-save-ai-keys-requested => { root.settings-save-ai-keys-requested(); }
+        settings-close-requested => { root.settings-close-requested(); }
+        orchestrator-envelopes: root.orchestrator-envelopes;
+        orchestrator-active-agent-name: root.orchestrator-active-agent-name;
+        orchestrator-execution-status: root.orchestrator-execution-status;
+        orchestrator-run-progress: root.orchestrator-run-progress;
+        orchestrator-active-log-output: root.orchestrator-active-log-output;
+        orchestrator-agents: root.orchestrator-agents;
+        orchestrator-selected-agent-id: root.orchestrator-selected-agent-id;
+        orchestrator-mcp-servers: root.orchestrator-mcp-servers;
+        orchestrator-skills: root.orchestrator-skills;
+        orchestrator-selected-skill-id <=> root.orchestrator-selected-skill-id;
+        orchestrator-active-skill-instructions: root.orchestrator-active-skill-instructions;
+        orchestrator-run-requested => { root.orchestrator-run-requested(); }
+        orchestrator-cancel-execution-requested(id) => { root.orchestrator-cancel-execution-requested(id); }
+        orchestrator-agent-selected(agent_id) => { root.orchestrator-agent-selected(agent_id); }
+        orchestrator-create-agent-requested => { root.orchestrator-create-agent-requested(); }
+        orchestrator-add-mcp-server-requested => { root.orchestrator-add-mcp-server-requested(); }
+        orchestrator-ping-mcp-server-requested(id) => { root.orchestrator-ping-mcp-server-requested(id); }
+        orchestrator-skill-selected(id) => { root.orchestrator-skill-selected(id); }
+        orchestrator-ai-chat-requested(text) => { root.orchestrator-ai-chat-requested(text); }
+        hub-habit-toggled(id, val) => { root.hub-habit-toggled(id, val); }
+        hub-task-toggled(id, val) => { root.hub-task-toggled(id, val); }
+        hub-save-quick-note(text) => { root.hub-save-quick-note(text); }
+        hub-open-today-journal => { root.hub-open-today-journal(); }
+        planner-set-view-mode(mode) => { root.planner-set-view-mode(mode); }
+        planner-navigate-prev => { root.planner-navigate-prev(); }
+        planner-navigate-next => { root.planner-navigate-next(); }
+        planner-navigate-today => { root.planner-navigate-today(); }
+        planner-item-selected(id) => { root.planner-item-selected(id); }
+        planner-open-day(day-key) => { root.planner-open-day(day-key); }
+        planner-open-month(month) => { root.planner-open-month(month); }
+        node-selected(id) => { root.node-selected(id); }
+        node-toggled(id, val) => { root.node-toggled(id, val); }
+        node-dragged(id, dx, dy) => { root.node-dragged(id, dx, dy); }
+        node-drag-finished(id, dx, dy) => { root.node-drag-finished(id, dx, dy); }
+        connection-begin(id, side) => { root.connection-begin(id, side); }
+        connection-drag-data(id, side) => { return root.connection-drag-data(id, side); }
+        connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); }
+        box-selected(x, y, width, height) => { root.box-selected(x, y, width, height); }
+        camera-panned(dx, dy) => { root.camera-panned(dx, dy); }
+        zoom-requested(delta) => { root.zoom-requested(delta); }
+        canvas-bounds-changed(width, height) => { root.canvas-bounds-changed(width, height); }
+        canvas-pointer-moved(x, y) => { root.canvas-pointer-moved(x, y); }
+        properties-opened => { root.board-properties-open = true; }
+        minimize-requested => { root.minimize-requested(); }
+        maximize-requested => { root.maximize-requested(); }
+        close-requested => { root.close-requested(); }
+        window-drag-requested => { root.window-drag-requested(); }
+        editor-text-changed(text) => { root.editor-text-changed(text); }
+        editor-save-requested => { root.editor-save-requested(); }
+        editor-revert-requested => { root.editor-revert-requested(); }
+        document-text-replacement-requested(intent) => { root.document-text-replacement-requested(intent); }
+        document-selection-changed(block-id, anchor, focus, source-text) => {
+            root.document-selection-changed(block-id, anchor, focus, source-text);
+        }
+        document-undo-requested => { root.document-undo-requested(); }
+        document-redo-requested => { root.document-redo-requested(); }
+        navigator-subspaces: root.navigator-subspaces;
+        navigator-files: root.navigator-files;
+        navigator-subspace-selected(id) => { root.navigator-subspace-selected(id); }
+        navigator-file-clicked(path) => { root.navigator-file-clicked(path); }
+        create-subspace-clicked => { root.new-subspace-modal-open = true; }
+    }
+
+    BoardPropertiesSheet {
+        width: parent.width;
+        height: parent.height;
+        z: 90;
+        open <=> root.board-properties-open;
+        background-image: root.board-background-image;
+        background-path: root.board-background-path;
+        background-dim: root.board-background-dim;
+        choose-image => { root.canvas-background-select-requested(); }
+        clear-image => { root.canvas-background-clear-requested(); }
+        dim-changed(value) => { root.canvas-background-dim-changed(value); }
+    }
+
+    NewSubspaceModal {
+        width: parent.width;
+        height: parent.height;
+        z: 100;
+        open <=> root.new-subspace-modal-open;
+        select-folder-requested => { root.new-subspace-browse-folder-requested(); }
+        create-requested(name, path, tenant, user, board) => {
+            root.new-subspace-create-requested(name, path, tenant, user, board);
+        }
+    }
+
+    Rectangle {
+        x: parent.width - 98px;
+        y: parent.height - 30px;
+        width: 84px;
+        height: 18px;
+        border-radius: 9px;
+        border-width: 1px;
+        border-color: root.build-mode == "RELEASE" ? #2b7653 : #6f3347;
+        background: root.build-mode == "RELEASE" ? #102b1f : #2e1720;
+        z: 100;
+        Text {
+            width: parent.width;
+            height: parent.height;
+            text: root.build-mode;
+            color: root.build-mode == "RELEASE" ? #a7f3d0 : #fecdd3;
+            font-family: Typography.font-mono;
+            font-size: 9px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+}

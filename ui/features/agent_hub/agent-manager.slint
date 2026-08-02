@@ -1,0 +1,94 @@
+import { ScrollView } from "std-widgets.slint";
+import { Borders, Colors, Motion, Spacing, Typography, Button, ButtonVariant } from "@UIKitSlint";
+
+export struct AgentProfileItem {
+    id: string,
+    name: string,
+    role: string,
+    model: string,
+    status: string,
+    active-task-count: int,
+}
+
+export component AgentManager inherits Rectangle {
+    in property <[AgentProfileItem]> agents;
+    in property <string> selected-agent-id: "";
+
+    callback agent-selected(string);
+    callback create-agent-requested;
+
+    background: Colors.paper-body;
+
+    VerticalLayout {
+        padding: Spacing.space-4;
+        spacing: Spacing.space-3;
+
+        HorizontalLayout {
+            height: 36px;
+            spacing: Spacing.space-3;
+            Text {
+                text: "Agent Manager";
+                color: Colors.ink-headers;
+                font-family: Typography.font-display;
+                font-size: Typography.size-md;
+                font-weight: Typography.weight-semibold;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "+ Create Agent";
+                variant: ButtonVariant.default;
+                clicked => { root.create-agent-requested(); }
+            }
+        }
+
+        ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: Spacing.space-3;
+
+                for agent in root.agents: Rectangle {
+                    height: 64px;
+                    background: agent.id == root.selected-agent-id ? Colors.paper-raised : Colors.paper-surface;
+                    border-radius: Borders.radius-md;
+                    border-width: Borders.width;
+                    border-color: agent.id == root.selected-agent-id ? Colors.primary : Colors.border-subtle;
+
+                    TouchArea {
+                        clicked => { root.agent-selected(agent.id); }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: Spacing.space-4;
+                        padding-right: Spacing.space-4;
+                        spacing: Spacing.space-4;
+
+                        VerticalLayout {
+                            alignment: center;
+                            horizontal-stretch: 1;
+                            spacing: 2px;
+                            Text {
+                                text: agent.name + " (" + agent.role + ")";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-sm;
+                                font-weight: Typography.weight-semibold;
+                            }
+                            Text {
+                                text: "Model: " + agent.model + " • Active Tasks: " + agent.active-task-count;
+                                color: Colors.ink-muted;
+                                font-size: Typography.size-xs;
+                            }
+                        }
+
+                        Text {
+                            text: agent.status;
+                            color: Colors.status-success;
+                            font-size: Typography.size-xs;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

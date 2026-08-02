@@ -1,0 +1,13 @@
+{
+  "active-surface": "code-editor",
+  "editor-document": {
+    "id": "retrospect.fixture.rs",
+    "title": "retrospect.fixture.rs",
+    "language": "Rust",
+    "read-only": false,
+    "save-state": "dirty",
+    "status-message": "Fixture changed — not saved"
+  },
+  "editor-text": "fn describe_workspace(name: &str) -> String {\n    format!(\"Retrospect workspace: {name}\")\n}\n\nfn main() {\n    println!(\"{}\", describe_workspace(\"native\"));\n}\n",
+  "editor-line-numbers": [1, 2, 3, 4, 5, 6, 7]
+}

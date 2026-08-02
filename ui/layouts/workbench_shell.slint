@@ -1,0 +1,445 @@
+import {
+    Node, WireRoute, WorkbenchSurface, SubspaceItem, NavigatorFileItem,
+} from "../models.slint";
+import { ExecutionEnvelopeItem } from "../features/agent_hub/orchestrator-panel.slint";
+import { AgentProfileItem } from "../features/agent_hub/agent-manager.slint";
+import { MCPServerItem } from "../features/agent_hub/mcp-manager.slint";
+import { SkillItem } from "../features/agent_hub/skills-manager.slint";
+import { ConnectionItem } from "../features/settings/settings-modal.slint";
+import { SubspaceNavigatorDock } from "../components/shell/subspace_navigator_dock.slint";
+import { TransparentHeaderRail } from "../components/shell/transparent_header_rail.slint";
+import { WindowChrome } from "../components/shell/window_chrome.slint";
+import { RevealZone } from "../components/shell/reveal_zone.slint";
+import { WorkspaceChrome } from "../theme/workspace_chrome.slint";
+import { WorkspaceMotion } from "../theme/workspace_motion.slint";
+import { CanvasChrome } from "../features/canvas/canvas_chrome.slint";
+import { CodeEditorSurface, CodeEditorDocument, Colors, Typography } from "@UIKitSlint";
+import { WorkspacePalette } from "../theme/workspace_palette.slint";
+import { DocumentWorkspace } from "../features/documents/document_workspace.slint";
+import { SettingsModal } from "../features/settings/settings-modal.slint";
+import { AgentDock } from "../features/ai/agent_dock.slint";
+import { AIManager } from "../features/agent_hub/ai-manager.slint";
+import { AIManagerModal } from "../features/agent_hub/ai_manager_modal.slint";
+import { OrchestratorPanel } from "../features/agent_hub/orchestrator-panel.slint";
+import { AgentManager } from "../features/agent_hub/agent-manager.slint";
+import { MCPManager } from "../features/agent_hub/mcp-manager.slint";
+import { SkillsManager } from "../features/agent_hub/skills-manager.slint";
+import {
+    LatticeLayoutPage, LatticeSelection, LatticeTextReplacementIntent,
+} from "@LatticeSlint";
+
+import { PlannerWorkspace } from "../features/planner/planner_workspace.slint";
+import {
+    PlannerViewMode, PlannerItem, PlannerDayColumn, PlannerCalendarCell, PlannerYearSummary, PlannerDragGhost
+} from "../models.slint";
+import { DailyHub, HabitItem, HubTaskItem } from "../features/hub/daily-hub.slint";
+
+export component WorkbenchShell inherits Rectangle {
+    in property <[Node]> nodes;
+    in property <[WireRoute]> wire-routes;
+    in property <image> canvas-backdrop;
+    in property <image> board-background-image;
+    in property <float> board-background-dim: 0.55;
+    in property <length> camera-x;
+    in property <length> camera-y;
+    in property <float> zoom;
+    in-out property <WorkbenchSurface> active-surface: WorkbenchSurface.canvas;
+    in property <CodeEditorDocument> editor-document;
+    in-out property <string> editor-text;
+    in property <[int]> editor-line-numbers;
+    in property <string> document-title;
+    in property <[LatticeLayoutPage]> document-pages;
+    in property <LatticeSelection> document-selection;
+    in property <bool> document-can-undo;
+    in property <bool> document-can-redo;
+    in property <PlannerViewMode> planner-view-mode: PlannerViewMode.daily;
+    in property <string> planner-header-title: "Monday, July 20, 2026";
+    in property <string> planner-active-day-key: "2026-07-20";
+    in property <[string]> planner-week-day-keys: ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26"];
+    in property <[PlannerDayColumn]> planner-week-day-columns: [];
+    in property <[PlannerDayColumn]> planner-daily-columns: [];
+    in property <[PlannerItem]> planner-items;
+    in property <[PlannerCalendarCell]> planner-month-cells;
+    in property <[PlannerYearSummary]> planner-year-summaries;
+    in property <[PlannerCalendarCell]> planner-year-cells: [];
+    in property <PlannerDragGhost> planner-drag-ghost;
+    in-out property <[HabitItem]> hub-habits: [];
+    in-out property <[HubTaskItem]> hub-tasks: [];
+    in-out property <string> hub-quick-note-text: "";
+    in property <string> hub-greeting: "Welcome back, Riz";
+    in property <float> hub-day-progress: 0.0;
+    in property <string> hub-today-date-str: "Monday, July 20, 2026";
+
+    callback hub-habit-toggled(string, bool);
+    callback hub-task-toggled(string, bool);
+    callback hub-save-quick-note(string);
+    callback hub-open-today-journal();
+
+    in property <[ConnectionItem]> settings-connections: [];
+    in-out property <string> settings-active-tab: "appearance";
+    in-out property <string> settings-active-theme-id: "retrospect";
+    in-out property <string> settings-active-ai-provider: "gemini";
+    in-out property <string> settings-gemini-api-key: "";
+    in-out property <string> settings-claude-api-key: "";
+    in-out property <string> settings-openai-api-key: "";
+    in-out property <string> settings-turso-db-url: "";
+    in-out property <string> settings-turso-auth-token: "";
+    in property <string> settings-vault-status-text: "Disconnected";
+    in property <[ExecutionEnvelopeItem]> orchestrator-envelopes: [];
+    in property <string> orchestrator-active-agent-name: "Developer Intelligence Agent";
+    in property <string> orchestrator-execution-status: "idle";
+    in property <float> orchestrator-run-progress: 0.0;
+    in property <string> orchestrator-active-log-output: "[System] Orchestrator idle.";
+    in property <[AgentProfileItem]> orchestrator-agents: [];
+    in property <string> orchestrator-selected-agent-id: "";
+    in property <[MCPServerItem]> orchestrator-mcp-servers: [];
+    in property <[SkillItem]> orchestrator-skills: [];
+    in-out property <string> orchestrator-selected-skill-id: "";
+    in property <string> orchestrator-active-skill-instructions: "";
+    in-out property <bool> ai-manager-modal-visible: false;
+
+    callback settings-theme-selected(string);
+    callback settings-connect-provider-requested(string);
+    callback settings-disconnect-provider-requested(string);
+    callback settings-save-ai-keys-requested();
+    callback settings-close-requested();
+    callback orchestrator-run-requested();
+    callback orchestrator-cancel-execution-requested(string);
+    callback orchestrator-agent-selected(string);
+    callback orchestrator-create-agent-requested();
+    callback orchestrator-add-mcp-server-requested();
+    callback orchestrator-ping-mcp-server-requested(string);
+    callback orchestrator-skill-selected(string);
+    callback orchestrator-ai-chat-requested(string);
+
+    // Subspace Properties
+    in property <[SubspaceItem]> navigator-subspaces: [];
+    in property <[NavigatorFileItem]> navigator-files: [];
+
+    // Subspace Callbacks
+    callback navigator-subspace-selected(string);
+    callback navigator-file-clicked(string);
+    callback create-subspace-clicked();
+
+    callback planner-set-view-mode(PlannerViewMode);
+    callback planner-navigate-prev();
+    callback planner-navigate-next();
+    callback planner-navigate-today();
+    callback planner-item-selected(string);
+    callback planner-open-day(string);
+    callback planner-open-month(int);
+    callback node-selected(string);
+    callback node-toggled(string, bool);
+    callback node-dragged(string, float, float);
+    callback node-drag-finished(string, float, float);
+    callback connection-begin(string, string);
+    pure callback connection-drag-data(string, string) -> data-transfer;
+    callback connection-dropped(string, string, data-transfer);
+    callback box-selected(float, float, float, float);
+    callback camera-panned(float, float);
+    callback zoom-requested(float);
+    callback canvas-bounds-changed(float, float);
+    callback canvas-pointer-moved(float, float);
+    callback properties-opened();
+    callback minimize-requested();
+    callback maximize-requested();
+    callback close-requested();
+    callback window-drag-requested();
+    callback editor-text-changed(string);
+    callback editor-save-requested();
+    callback editor-revert-requested();
+    callback document-text-replacement-requested(LatticeTextReplacementIntent);
+    callback document-selection-changed(string, int, int, string);
+    callback document-undo-requested();
+    callback document-redo-requested();
+
+    private property <bool> navigator-pinned: false;
+    private property <bool> navigator-peeking: false;
+    private property <bool> navigator-open: root.navigator-pinned || root.navigator-peeking;
+    private property <bool> chrome-revealed: false;
+    private property <length> workspace-offset: root.chrome-revealed ? WorkspaceChrome.caption-rail-height : 0px;
+    Rectangle {
+        x: 0px;
+        y: root.workspace-offset;
+        width: parent.width;
+        height: parent.height - root.workspace-offset;
+        clip: true;
+        background: @radial-gradient(circle 900px at 760px 430px, WorkspacePalette.workspace-glow, Colors.paper-body 72%);
+        animate y { duration: root.chrome-revealed ? WorkspaceMotion.chrome-reveal-duration : WorkspaceMotion.chrome-dismiss-duration; easing: cubic-bezier(0.2, 0, 0, 1); }
+        animate height { duration: root.chrome-revealed ? WorkspaceMotion.chrome-reveal-duration : WorkspaceMotion.chrome-dismiss-duration; easing: cubic-bezier(0.2, 0, 0, 1); }
+
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            padding: WorkspaceChrome.shell-inset;
+            // A closed navigator has zero width and must not leave its old
+            // inter-column gap behind. When it is open, the same token is
+            // restored between the dock and canvas.
+            spacing: root.navigator-open ? WorkspaceChrome.shell-inset : 0px;
+            SubspaceNavigatorDock {
+                open: root.navigator-open;
+                pinned: root.navigator-pinned;
+                vertical-stretch: 1;
+                subspaces: root.navigator-subspaces;
+                files: root.navigator-files;
+                subspace-selected(id) => { root.navigator-subspace-selected(id); }
+                create-subspace-clicked => { root.create-subspace-clicked(); }
+                file-clicked(path) => { root.navigator-file-clicked(path); }
+                peek-dismissed => { root.navigator-peeking = false; }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+                vertical-stretch: 1;
+                background: transparent;
+                if root.active-surface == WorkbenchSurface.canvas : CanvasChrome {
+                    width: parent.width;
+                    height: parent.height;
+                    nodes: root.nodes;
+                    wire-routes: root.wire-routes;
+                    canvas-backdrop: root.canvas-backdrop;
+                    board-background-image: root.board-background-image;
+                    board-background-dim: root.board-background-dim;
+                    camera-x: root.camera-x;
+                    camera-y: root.camera-y;
+                    zoom: root.zoom;
+                    node-selected(id) => { root.node-selected(id); }
+                    node-toggled(id, val) => { root.node-toggled(id, val); }
+                    node-dragged(id, dx, dy) => { root.node-dragged(id, dx, dy); }
+                    node-drag-finished(id, dx, dy) => { root.node-drag-finished(id, dx, dy); }
+                    connection-begin(id, side) => { root.connection-begin(id, side); }
+                    connection-drag-data(id, side) => { return root.connection-drag-data(id, side); }
+                    connection-dropped(id, side, data) => { root.connection-dropped(id, side, data); }
+                    box-selected(x, y, width, height) => { root.box-selected(x, y, width, height); }
+                    camera-panned(dx, dy) => { root.camera-panned(dx, dy); }
+                    zoom-requested(delta) => { root.zoom-requested(delta); }
+                    canvas-bounds-changed(width, height) => { root.canvas-bounds-changed(width, height); }
+                    canvas-pointer-moved(x, y) => { root.canvas-pointer-moved(x, y); }
+                    properties-opened => { root.properties-opened(); }
+                    pointer-entered => { root.chrome-revealed = false; }
+                }
+                if root.active-surface == WorkbenchSurface.code-editor : CodeEditorSurface {
+                    width: parent.width;
+                    height: parent.height;
+                    document: root.editor-document;
+                    line-numbers: root.editor-line-numbers;
+                    text <=> root.editor-text;
+                    text-changed(text) => { root.editor-text-changed(text); }
+                    save-requested => { root.editor-save-requested(); }
+                    revert-requested => { root.editor-revert-requested(); }
+                }
+                if root.active-surface == WorkbenchSurface.document : DocumentWorkspace {
+                    width: parent.width;
+                    height: parent.height;
+                    document-title: root.document-title;
+                    pages: root.document-pages;
+                    selection: root.document-selection;
+                    can-undo: root.document-can-undo;
+                    can-redo: root.document-can-redo;
+                    text-replacement-requested(intent) => { root.document-text-replacement-requested(intent); }
+                    selection-changed(block-id, anchor, focus, source-text) => {
+                        root.document-selection-changed(block-id, anchor, focus, source-text);
+                    }
+                    undo-requested => { root.document-undo-requested(); }
+                    redo-requested => { root.document-redo-requested(); }
+                }
+                if root.active-surface == WorkbenchSurface.planner : PlannerWorkspace {
+                    width: parent.width;
+                    height: parent.height;
+                    view-mode: root.planner-view-mode;
+                    header-title: root.planner-header-title;
+                    active-day-key: root.planner-active-day-key;
+                    week-day-keys: root.planner-week-day-keys;
+                    week-day-columns: root.planner-week-day-columns;
+                    daily-columns: root.planner-daily-columns;
+                    items: root.planner-items;
+                    month-cells: root.planner-month-cells;
+                    year-summaries: root.planner-year-summaries;
+                    year-cells: root.planner-year-cells;
+                    drag-ghost: root.planner-drag-ghost;
+                    open-day(day-key) => { root.planner-open-day(day-key); }
+                    open-month(month) => { root.planner-open-month(month); }
+                    set-view-mode(mode) => { root.planner-set-view-mode(mode); }
+                    navigate-prev => { root.planner-navigate-prev(); }
+                    navigate-next => { root.planner-navigate-next(); }
+                    navigate-today => { root.planner-navigate-today(); }
+                    item-selected(id) => { root.planner-item-selected(id); }
+                }
+                if root.active-surface == WorkbenchSurface.hub : DailyHub {
+                    width: parent.width;
+                    height: parent.height;
+                    today-date-str: root.hub-today-date-str;
+                    greeting: root.hub-greeting;
+                    day-progress: root.hub-day-progress;
+                    habits <=> root.hub-habits;
+                    tasks <=> root.hub-tasks;
+                    quick-note-text <=> root.hub-quick-note-text;
+                    habit-toggled(id, val) => { root.hub-habit-toggled(id, val); }
+                    task-toggled(id, val) => { root.hub-task-toggled(id, val); }
+                    save-quick-note(text) => { root.hub-save-quick-note(text); }
+                    open-today-journal => { root.hub-open-today-journal(); }
+                }
+                if root.active-surface == WorkbenchSurface.settings : SettingsModal {
+                    width: parent.width;
+                    height: parent.height;
+                    modal-visible: true;
+                    active-tab <=> root.settings-active-tab;
+                    theme-options: [];
+                    active-theme-id <=> root.settings-active-theme-id;
+                    active-ai-provider <=> root.settings-active-ai-provider;
+                    connections: root.settings-connections;
+                    connect-provider-requested(id) => {
+                        root.settings-connect-provider-requested(id);
+                    }
+                    disconnect-provider-requested(id) => {
+                        root.settings-disconnect-provider-requested(id);
+                    }
+                    theme-selected(theme_id) => {
+                        root.settings-theme-selected(theme_id);
+                    }
+                    gemini-api-key <=> root.settings-gemini-api-key;
+                    claude-api-key <=> root.settings-claude-api-key;
+                    openai-api-key <=> root.settings-openai-api-key;
+                    turso-db-url <=> root.settings-turso-db-url;
+                    turso-auth-token <=> root.settings-turso-auth-token;
+                    vault-status-text: root.settings-vault-status-text;
+                    save-ai-keys-requested => { root.settings-save-ai-keys-requested(); }
+                    close-requested => { root.settings-close-requested(); }
+                }
+                AIManagerModal {
+                    width: parent.width;
+                    height: parent.height;
+                    modal-visible <=> root.ai-manager-modal-visible;
+                    connections: root.settings-connections;
+                    agents: root.orchestrator-agents;
+                    chat-log: root.orchestrator-active-log-output;
+                    close-requested => { root.ai-manager-modal-visible = false; }
+                    connect-provider-requested(id) => { root.settings-connect-provider-requested(id); }
+                    disconnect-provider-requested(id) => { root.settings-disconnect-provider-requested(id); }
+                    send-chat-message(msg) => { root.orchestrator-ai-chat-requested(msg); }
+                }
+                if root.active-surface == WorkbenchSurface.orchestrator : Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    background: Colors.paper-surface;
+                    padding: 12px;
+                    VerticalLayout {
+                        spacing: 12px;
+
+                        AIManager {
+                            width: parent.width;
+                            connections: root.settings-connections;
+                            chat-log: root.orchestrator-active-log-output;
+                            connect-provider-requested(provider_id) => {
+                                root.settings-connect-provider-requested(provider_id);
+                            }
+                            disconnect-provider-requested(provider_id) => {
+                                root.settings-disconnect-provider-requested(provider_id);
+                            }
+                            send-chat-message(message) => {
+                                root.orchestrator-ai-chat-requested(message);
+                            }
+                        }
+
+                        AgentDock {
+                            width: 260px;
+                            active-agent-name: root.orchestrator-active-agent-name;
+                            execution-status: root.orchestrator-execution-status;
+                            run-progress: root.orchestrator-run-progress;
+                            trigger-run => { root.orchestrator-run-requested(); }
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            AgentManager {
+                                horizontal-stretch: 1;
+                                vertical-stretch: 1;
+                                agents: root.orchestrator-agents;
+                                selected-agent-id: root.orchestrator-selected-agent-id;
+                                agent-selected(id) => { root.orchestrator-agent-selected(id); }
+                                create-agent-requested => { root.orchestrator-create-agent-requested(); }
+                            }
+
+                            MCPManager {
+                                horizontal-stretch: 1;
+                                vertical-stretch: 1;
+                                servers: root.orchestrator-mcp-servers;
+                                add-server-requested => { root.orchestrator-add-mcp-server-requested(); }
+                                ping-server-requested(server_id) => { root.orchestrator-ping-mcp-server-requested(server_id); }
+                            }
+
+                            SkillsManager {
+                                horizontal-stretch: 1;
+                                vertical-stretch: 1;
+                                skills: root.orchestrator-skills;
+                                selected-skill-id <=> root.orchestrator-selected-skill-id;
+                                active-skill-instructions: root.orchestrator-active-skill-instructions;
+                                skill-selected(id) => { root.orchestrator-skill-selected(id); }
+                            }
+                        }
+
+                        OrchestratorPanel {
+                            width: parent.width;
+                            vertical-stretch: 1;
+                            envelopes: root.orchestrator-envelopes;
+                            active-log-output: root.orchestrator-active-log-output;
+                            cancel-execution-requested(id) => {
+                                root.orchestrator-cancel-execution-requested(id);
+                            }
+                        }
+                    }
+                }
+
+                TransparentHeaderRail {
+                    x: 0px;
+                    // Keep the header at a constant offset inside the moving
+                    // canvas frame. Do not animate or compensate this child.
+                    y: WorkspaceChrome.header-top-inset;
+                    width: parent.width;
+                    z: 10;
+                    navigator-open: root.navigator-open;
+                    active-surface: root.active-surface;
+                    planner-view-mode: root.planner-view-mode;
+                    toggle-navigator => {
+                        root.navigator-pinned = !root.navigator-pinned;
+                        root.navigator-peeking = false;
+                    }
+                    surface-selected(surface) => { root.active-surface = surface; }
+                    planner-view-selected(mode) => { root.planner-set-view-mode(mode); }
+                    toggle-ai-manager-modal => { root.ai-manager-modal-visible = !root.ai-manager-modal-visible; }
+                }
+            }
+        }
+
+        if !root.navigator-open : RevealZone {
+            x: 0px;
+            y: 0px;
+            width: WorkspaceChrome.left-reveal-zone-width;
+            height: parent.height;
+            z: 20;
+            revealed => { root.navigator-peeking = true; }
+        }
+    }
+
+    WindowChrome {
+        x: 0px;
+        y: root.chrome-revealed ? 0px : -WorkspaceChrome.caption-rail-height;
+        width: parent.width;
+        opacity: root.chrome-revealed ? 1 : 0;
+        z: 30;
+        animate y { duration: root.chrome-revealed ? WorkspaceMotion.chrome-reveal-duration : WorkspaceMotion.chrome-dismiss-duration; easing: cubic-bezier(0.2, 0, 0, 1); }
+        animate opacity { duration: root.chrome-revealed ? WorkspaceMotion.chrome-reveal-duration : WorkspaceMotion.chrome-dismiss-duration; easing: ease-out; }
+        minimize-requested => { root.minimize-requested(); }
+        maximize-requested => { root.maximize-requested(); }
+        close-requested => { root.close-requested(); }
+        drag-requested => { root.window-drag-requested(); }
+    }
+
+    if !root.chrome-revealed : RevealZone {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: WorkspaceChrome.top-reveal-zone-height;
+        z: 40;
+        revealed => { root.chrome-revealed = true; }
+    }
+}

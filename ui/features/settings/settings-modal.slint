@@ -1,0 +1,334 @@
+import { ScrollView } from "std-widgets.slint";
+import {
+    Borders, Colors, Controls, Motion, Overlays, Spacing, Typography,
+    Button, ButtonVariant, Switch, Input, ThemeSelector, ThemeOption,
+    ScrollArea,
+} from "@UIKitSlint";
+
+export struct ConnectionItem {
+    id: string,
+    name: string,
+    provider: string,
+    status: string,
+    connected: bool,
+}
+
+export component SettingsModal inherits Rectangle {
+    in-out property <bool> modal-visible: false;
+    in-out property <string> active-tab: "appearance"; // "appearance" | "oauth" | "ai_providers" | "cloud_vault" | "shortcuts"
+
+    // Theme selector
+    in property <[ThemeOption]> theme-options;
+    in property <string> active-theme-id;
+    callback theme-selected(string);
+
+    // OAuth Connections
+    in property <[ConnectionItem]> connections;
+    callback connect-provider-requested(string);
+    callback disconnect-provider-requested(string);
+
+    // AI Providers
+    in-out property <string> gemini-api-key: "";
+    in-out property <string> claude-api-key: "";
+    in-out property <string> openai-api-key: "";
+    in-out property <string> active-ai-provider: "gemini";
+    callback save-ai-keys-requested;
+
+    // Cloud Vault
+    in-out property <string> turso-db-url: "";
+    in-out property <string> turso-auth-token: "";
+    in property <string> vault-status-text: "Connected";
+
+    callback close-requested;
+
+    if root.modal-visible: Rectangle {
+        width: 100%;
+        height: 100%;
+        background: Colors.paper-chrome.transparentize(0.4);
+
+        TouchArea {
+            clicked => { root.close-requested(); }
+        }
+
+        Rectangle {
+            width: 760px;
+            height: 520px;
+            background: Colors.paper-surface;
+            border-radius: Borders.radius-xl;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+
+            HorizontalLayout {
+                spacing: 0;
+
+                // Sidebar Navigation Tabs
+                Rectangle {
+                    width: 200px;
+                    background: Colors.paper-sunken;
+                    border-radius: Borders.radius-xl;
+
+                    VerticalLayout {
+                        padding: Spacing.space-4;
+                        spacing: Spacing.space-2;
+
+                        Text {
+                            text: "Settings";
+                            color: Colors.ink-headers;
+                            font-family: Typography.font-display;
+                            font-size: Typography.size-lg;
+                            font-weight: Typography.weight-semibold;
+                        }
+
+                        Rectangle { height: Spacing.space-2; }
+
+                        Button {
+                            text: "Appearance";
+                            variant: root.active-tab == "appearance" ? ButtonVariant.secondary : ButtonVariant.ghost;
+                            clicked => { root.active-tab = "appearance"; }
+                        }
+                        Button {
+                            text: "OAuth & Connections";
+                            variant: root.active-tab == "oauth" ? ButtonVariant.secondary : ButtonVariant.ghost;
+                            clicked => { root.active-tab = "oauth"; }
+                        }
+                        Button {
+                            text: "AI Providers";
+                            variant: root.active-tab == "ai_providers" ? ButtonVariant.secondary : ButtonVariant.ghost;
+                            clicked => { root.active-tab = "ai_providers"; }
+                        }
+                        Button {
+                            text: "Cloud & Vault";
+                            variant: root.active-tab == "cloud_vault" ? ButtonVariant.secondary : ButtonVariant.ghost;
+                            clicked => { root.active-tab = "cloud_vault"; }
+                        }
+                        Button {
+                            text: "Shortcuts";
+                            variant: root.active-tab == "shortcuts" ? ButtonVariant.secondary : ButtonVariant.ghost;
+                            clicked => { root.active-tab = "shortcuts"; }
+                        }
+
+                        Rectangle { vertical-stretch: 1; }
+                    }
+                }
+
+                // Content Panel
+                VerticalLayout {
+                    padding: Spacing.space-5;
+                    spacing: Spacing.space-4;
+                    horizontal-stretch: 1;
+
+                    // Header & Close Button
+                    HorizontalLayout {
+                        height: 32px;
+                        Text {
+                            text: root.active-tab == "appearance" ? "Theme & Appearance" : (root.active-tab == "oauth" ? "OAuth & Connections Manager" : (root.active-tab == "ai_providers" ? "AI Providers & API Keys" : (root.active-tab == "cloud_vault" ? "Cloud Database & Vault" : "Keyboard Shortcuts")));
+                            color: Colors.ink-headers;
+                            font-size: Typography.size-md;
+                            font-weight: Typography.weight-semibold;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Close";
+                            variant: ButtonVariant.ghost;
+                            clicked => { root.close-requested(); }
+                        }
+                    }
+
+                    Rectangle {
+                        vertical-stretch: 1;
+
+                        // Appearance Tab
+                        if root.active-tab == "appearance": VerticalLayout {
+                            spacing: Spacing.space-3;
+                            Text {
+                                text: "Select Theme Pack";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-sm;
+                                font-weight: Typography.weight-medium;
+                            }
+                            ThemeSelector {
+                                themes: root.theme-options;
+                                selected-theme-id: root.active-theme-id;
+                                theme-selected(brand-id, theme-id) => { root.theme-selected(theme-id); }
+                            }
+                        }
+
+                        // OAuth & Connections Manager Tab
+                        if root.active-tab == "oauth": ScrollView {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: Spacing.space-3;
+                                for conn in root.connections: Rectangle {
+                                    height: 56px;
+                                    background: Colors.paper-sunken;
+                                    border-radius: Borders.radius-md;
+                                    border-width: Borders.width;
+                                    border-color: Colors.border-subtle;
+
+                                    HorizontalLayout {
+                                        padding-left: Spacing.space-4;
+                                        padding-right: Spacing.space-4;
+                                        spacing: Spacing.space-3;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            horizontal-stretch: 1;
+                                            Text {
+                                                text: conn.name;
+                                                color: Colors.ink-body;
+                                                font-weight: Typography.weight-medium;
+                                                font-size: Typography.size-sm;
+                                            }
+                                            Text {
+                                                text: conn.status;
+                                                color: conn.connected ? Colors.status-success : Colors.ink-muted;
+                                                font-size: Typography.size-xs;
+                                            }
+                                        }
+
+                                        Button {
+                                            text: conn.connected ? "Disconnect" : "Connect";
+                                            variant: conn.connected ? ButtonVariant.ghost : ButtonVariant.default;
+                                            clicked => {
+                                                if conn.connected {
+                                                    root.disconnect-provider-requested(conn.id);
+                                                } else {
+                                                    root.connect-provider-requested(conn.id);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // AI Providers Tab
+                        if root.active-tab == "ai_providers": VerticalLayout {
+                            spacing: Spacing.space-3;
+
+                            Text {
+                                text: "Google Gemini API Key";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-xs;
+                            }
+                            Input {
+                                text <=> root.gemini-api-key;
+                                placeholder: "AIzaSy...";
+                            }
+
+                            Text {
+                                text: "Anthropic Claude API Key";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-xs;
+                            }
+                            Input {
+                                text <=> root.claude-api-key;
+                                placeholder: "sk-ant-...";
+                            }
+
+                            Text {
+                                text: "OpenAI API Key";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-xs;
+                            }
+                            Input {
+                                text <=> root.openai-api-key;
+                                placeholder: "sk-proj-...";
+                            }
+
+                            Rectangle { vertical-stretch: 1; }
+
+                            Button {
+                                text: "Save API Credentials";
+                                variant: ButtonVariant.default;
+                                clicked => { root.save-ai-keys-requested(); }
+                            }
+                        }
+
+                        // Cloud & Vault Tab
+                        if root.active-tab == "cloud_vault": VerticalLayout {
+                            spacing: Spacing.space-3;
+
+                            Text {
+                                text: "Turso Cloud Database URL";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-xs;
+                            }
+                            Input {
+                                text <=> root.turso-db-url;
+                                placeholder: "libsql://retrospect-db-user.turso.io";
+                            }
+
+                            Text {
+                                text: "Authentication Token";
+                                color: Colors.ink-body;
+                                font-size: Typography.size-xs;
+                            }
+                            Input {
+                                text <=> root.turso-auth-token;
+                                placeholder: "eyJhbGciOi...";
+                            }
+
+                            HorizontalLayout {
+                                height: 24px;
+                                spacing: Spacing.space-2;
+                                Text {
+                                    text: "Status: " + root.vault-status-text;
+                                    color: Colors.status-success;
+                                    font-size: Typography.size-xs;
+                                    font-weight: Typography.weight-semibold;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Rectangle { vertical-stretch: 1; }
+                        }
+
+                        // Shortcuts Tab
+                        if root.active-tab == "shortcuts": ScrollArea {
+                            vertical-stretch: 1;
+                            VerticalLayout {
+                                spacing: Spacing.space-2;
+
+                                Rectangle {
+                                    height: 36px;
+                                    background: Colors.paper-sunken;
+                                    border-radius: Borders.radius-sm;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        Text { text: "Toggle Settings Modal"; color: Colors.ink-body; font-size: Typography.size-xs; vertical-alignment: center; horizontal-stretch: 1; }
+                                        Text { text: "Ctrl + ,"; color: Colors.ink-muted; font-family: Typography.font-mono; font-size: Typography.size-xs; vertical-alignment: center; }
+                                    }
+                                }
+                                Rectangle {
+                                    height: 36px;
+                                    background: Colors.paper-sunken;
+                                    border-radius: Borders.radius-sm;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        Text { text: "Command Palette"; color: Colors.ink-body; font-size: Typography.size-xs; vertical-alignment: center; horizontal-stretch: 1; }
+                                        Text { text: "Ctrl + K"; color: Colors.ink-muted; font-family: Typography.font-mono; font-size: Typography.size-xs; vertical-alignment: center; }
+                                    }
+                                }
+                                Rectangle {
+                                    height: 36px;
+                                    background: Colors.paper-sunken;
+                                    border-radius: Borders.radius-sm;
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        Text { text: "Slash Menu in Document"; color: Colors.ink-body; font-size: Typography.size-xs; vertical-alignment: center; horizontal-stretch: 1; }
+                                        Text { text: "/"; color: Colors.ink-muted; font-family: Typography.font-mono; font-size: Typography.size-xs; vertical-alignment: center; }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

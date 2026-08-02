@@ -1,0 +1,27 @@
+// Product-local geometry for Retrospect's native workspace chrome. It is kept
+// separate from motion so surfaces share measurements without coupling to an
+// animation implementation.
+export global WorkspaceChrome {
+    out property <length> caption-rail-height: 36px;
+    out property <length> caption-control-size: 32px;
+    out property <length> caption-glyph-size: 16px;
+    out property <length> shell-inset: 8px;
+    out property <length> rail-control-size: 36px;
+    out property <length> rail-glyph-size: 18px;
+    out property <length> rail-surface-height: 44px;
+    out property <length> rail-surface-radius: 22px;
+    out property <length> rail-border-width: 1px;
+    out property <length> rail-padding: 4px;
+    out property <length> rail-gap: 2px;
+    // Fixed envelopes are reserved for header groups whose contents are all
+    // icon controls. Time and mode groups are content-fit in the component so
+    // collapsed items cannot leave a blank tail.
+    out property <length> header-workspace-rail-width: 118px;
+    out property <length> header-utility-rail-width: 196px;
+    out property <length> header-admin-rail-width: 234px;
+    // The header keeps one local inset inside the canvas frame in both hover
+    // states; the frame and its contents move together as one surface.
+    out property <length> header-top-inset: 12px;
+    out property <length> left-reveal-zone-width: 3px;
+    out property <length> top-reveal-zone-height: 14px;
+}

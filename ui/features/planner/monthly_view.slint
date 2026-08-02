@@ -1,0 +1,115 @@
+import { ScrollView } from "std-widgets.slint";
+import { Colors } from "@UIKitSlint";
+import { PlannerCalendarCell, PlannerItem } from "../../models.slint";
+
+export component MonthlyView inherits Rectangle {
+    in property <[PlannerCalendarCell]> cells;
+    in property <[PlannerItem]> items;
+
+    callback day-selected(string);
+    callback item-selected(string);
+
+    background: Colors.paper-body;
+
+    VerticalLayout {
+        width: 100%;
+        height: 100%;
+
+        // Weekday rail.
+        HorizontalLayout {
+            width: 100%;
+            height: 32px;
+            spacing: 0px;
+
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Mon"; } }
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Tue"; } }
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Wed"; } }
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Thu"; } }
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Fri"; } }
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Sat"; } }
+            Rectangle { width: parent.width / 7; Text { width: parent.width; height: parent.height; color: Colors.ink-muted; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; text: "Sun"; } }
+        }
+
+        ScrollView {
+            width: 100%;
+            height: parent.height - 32px;
+
+            GridLayout {
+                width: 100%;
+                spacing: 1px;
+
+                for cell[idx] in root.cells : Rectangle {
+                    row: idx / 7;
+                    col: Math.mod(idx, 7);
+
+                    background: cell.is-current-month
+                        ? (cell.density > 6
+                            ? Colors.primary.with-alpha(0.55)
+                            : cell.density > 3
+                            ? Colors.primary.with-alpha(0.35)
+                            : cell.density > 0
+                            ? Colors.primary.with-alpha(0.20)
+                            : Colors.paper-surface)
+                        : Colors.paper-body;
+                    border-color: cell.is-today ? Colors.primary : Colors.border-subtle;
+                    border-width: 1px;
+                    min-height: 144px;
+
+                    if cell.is-current-month : TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        clicked => { root.day-selected(cell.day-key); }
+                    }
+
+                    VerticalLayout {
+                        width: 100%;
+                        height: 100%;
+                        padding: 6px;
+                        spacing: 4px;
+                        alignment: start;
+
+                        if cell.is-current-month : Text {
+                            text: cell.day-number;
+                            color: Colors.ink-body;
+                            font-size: 11px;
+                            font-weight: 700;
+                        }
+
+                        if cell.is-current-month : Rectangle {
+                            height: 4px;
+                            background: Colors.paper-surface;
+                            border-color: Colors.border-subtle;
+                            border-width: 1px;
+                            border-radius: 2px;
+                            width: 90%;
+                            if cell.is-today : Rectangle {
+                                width: 100%;
+                                height: 100%;
+                                background: Colors.primary.with-alpha(0.5);
+                            }
+                        }
+
+                        for item in root.items : Rectangle {
+                            if cell.is-current-month && item.day-key == cell.day-key : Rectangle {
+                                min-height: 18px;
+                                width: 100%;
+                                border-radius: 3px;
+                                background: item.accent.with-alpha(0.30);
+                                border-color: item.accent;
+                                border-width: 1px;
+                                padding-left: 6px;
+
+                                Text {
+                                    text: item.title;
+                                    color: Colors.ink-body;
+                                    font-size: 10px;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

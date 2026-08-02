@@ -1,0 +1,17 @@
+// A deliberately small edge hit target. The shell decides what revealing means;
+// this primitive only turns pointer entry into an intent.
+export component RevealZone inherits Rectangle {
+    callback revealed();
+
+    background: transparent;
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        changed has-hover => {
+            if self.has-hover {
+                root.revealed();
+            }
+        }
+    }
+}

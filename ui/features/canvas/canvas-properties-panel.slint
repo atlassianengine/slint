@@ -1,0 +1,97 @@
+import { Borders, Colors, Motion, Spacing, Typography } from "../../../packages/frontend/ui-kit-slint/ui/theme/mod.slint";
+import { Button, ButtonVariant } from "../../../packages/frontend/ui-kit-slint/ui/components/actions/button.slint";
+import { Input } from "../../../packages/frontend/ui-kit-slint/ui/components/forms/input.slint";
+
+export component CanvasPropertiesPanel inherits Rectangle {
+    in property <bool> selection-active: false;
+    in-out property <string> node-id: "";
+    in-out property <string> node-type: "Rectangle";
+    in-out property <string> node-x: "0";
+    in-out property <string> node-y: "0";
+    in-out property <string> node-width: "200";
+    in-out property <string> node-height: "120";
+    in-out property <string> fill-color: "#1e1e24";
+    in-out property <string> stroke-color: "#3a3a46";
+    in-out property <string> connector-routing: "Orthogonal"; // "Orthogonal" | "Direct" | "Bezier"
+
+    callback apply-changes-requested;
+    callback delete-node-requested(string);
+
+    background: Colors.paper-sunken;
+    border-radius: Borders.radius-lg;
+    border-width: Borders.width;
+    border-color: Colors.border-subtle;
+
+    VerticalLayout {
+        padding: Spacing.space-4;
+        spacing: Spacing.space-3;
+
+        Text {
+            text: "Canvas Element Inspector";
+            color: Colors.ink-headers;
+            font-size: Typography.size-sm;
+            font-weight: Typography.weight-semibold;
+        }
+
+        if !root.selection-active: Text {
+            text: "Click an element on the canvas to inspect and edit its properties.";
+            color: Colors.ink-muted;
+            font-size: Typography.size-xs;
+            wrap: word-wrap;
+        }
+
+        if root.selection-active: VerticalLayout {
+            spacing: Spacing.space-3;
+
+            Text { text: "Element ID: " + root.node-id; color: Colors.ink-muted; font-family: Typography.font-mono; font-size: Typography.size-2xs; }
+
+            HorizontalLayout {
+                spacing: Spacing.space-2;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text { text: "Position X"; color: Colors.ink-body; font-size: Typography.size-2xs; }
+                    Input { text <=> root.node-x; }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text { text: "Position Y"; color: Colors.ink-body; font-size: Typography.size-2xs; }
+                    Input { text <=> root.node-y; }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: Spacing.space-2;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text { text: "Width"; color: Colors.ink-body; font-size: Typography.size-2xs; }
+                    Input { text <=> root.node-width; }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    Text { text: "Height"; color: Colors.ink-body; font-size: Typography.size-2xs; }
+                    Input { text <=> root.node-height; }
+                }
+            }
+
+            Text { text: "Fill Color"; color: Colors.ink-body; font-size: Typography.size-2xs; }
+            Input { text <=> root.fill-color; }
+
+            Text { text: "Stroke Color"; color: Colors.ink-body; font-size: Typography.size-2xs; }
+            Input { text <=> root.stroke-color; }
+
+            Rectangle { vertical-stretch: 1; }
+
+            Button {
+                text: "Apply Changes";
+                variant: ButtonVariant.default;
+                clicked => { root.apply-changes-requested(); }
+            }
+
+            Button {
+                text: "Delete Element";
+                variant: ButtonVariant.ghost;
+                clicked => { root.delete-node-requested(root.node-id); }
+            }
+        }
+    }
+}

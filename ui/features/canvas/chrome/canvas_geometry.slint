@@ -1,0 +1,37 @@
+// Shared canvas chrome geometry. The side-rail envelope is also the max-area
+// contract for future overlay panels, so overlays and rails share one safe
+// region instead of inventing their own edge offsets.
+export global CanvasGeometry {
+    out property <length> rail-edge-inset: 12px;
+    // The top board rail sits 12px below the header-safe area. The remaining
+    // rails use rail-edge-inset directly because they have no header above.
+    out property <length> top-rail-offset: 68px;
+    out property <length> rail-control-size: 36px;
+    out property <length> rail-icon-size: 20px;
+    out property <length> rail-surface-height: 44px;
+    out property <length> rail-surface-radius: 22px;
+    out property <length> rail-border-width: 1px;
+    out property <length> rail-padding: 4px;
+    out property <length> rail-gap: 4px;
+    // Side rails use the same edge inset and control geometry, but each
+    // envelope is content-fit so a shorter stack does not gain blank space.
+    out property <length> left-side-rail-height: 246px;
+    out property <length> right-side-rail-height: 286px;
+    out property <length> overlay-max-inset: 12px;
+}
+
+// Transparent bounds for future canvas overlays. Content is supplied by the
+// caller so panel ownership stays with its feature.
+export component CanvasOverlayMaxArea inherits Rectangle {
+    in property <length> viewport-width;
+    in property <length> viewport-height;
+    in property <length> inset: CanvasGeometry.overlay-max-inset;
+
+    x: root.inset;
+    y: root.inset;
+    width: max(0px, root.viewport-width - root.inset * 2);
+    height: max(0px, root.viewport-height - root.inset * 2);
+    background: transparent;
+    clip: true;
+    @children
+}

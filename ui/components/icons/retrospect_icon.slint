@@ -1,0 +1,54 @@
+// Product-local icon registry. Assets are bundled SVGs, not inline paths or a
+// runtime icon font, so the native shell stays self-contained.
+
+export enum RetrospectIconName {
+    sidebar, day, week, month, year, hub, tasks,
+    canvas, dashboard, pipeline, code,
+    capture, notifications, inbox, ai, search,
+    connections, agents, discovery, theme, settings,
+    summary, wiki, mockups, browser, git, properties, approvals, activity,
+    deployments, nodes, draw, add, remove, window-maximize, window-close,
+}
+
+export component RetrospectIcon inherits Image {
+    in property <RetrospectIconName> icon: RetrospectIconName.sidebar;
+    in property <color> icon-color: #a1a1aa;
+
+    source: root.icon == RetrospectIconName.sidebar ? @image-url("../../assets/icons/layout-sidebar.svg")
+        : root.icon == RetrospectIconName.day ? @image-url("../../assets/icons/calendar.svg")
+        : root.icon == RetrospectIconName.week ? @image-url("../../assets/icons/calendar-week.svg")
+        : root.icon == RetrospectIconName.month ? @image-url("../../assets/icons/calendar-month.svg")
+        : root.icon == RetrospectIconName.year ? @image-url("../../assets/icons/calendar-stats.svg")
+        : root.icon == RetrospectIconName.hub ? @image-url("../../assets/icons/route.svg")
+        : root.icon == RetrospectIconName.tasks ? @image-url("../../assets/icons/list-check.svg")
+        : root.icon == RetrospectIconName.canvas ? @image-url("../../assets/icons/layout-grid.svg")
+        : root.icon == RetrospectIconName.code ? @image-url("../../assets/icons/file-text.svg")
+        : root.icon == RetrospectIconName.dashboard ? @image-url("../../assets/icons/gauge.svg")
+        : root.icon == RetrospectIconName.pipeline ? @image-url("../../assets/icons/route.svg")
+        : root.icon == RetrospectIconName.capture ? @image-url("../../assets/icons/capture.svg")
+        : root.icon == RetrospectIconName.notifications ? @image-url("../../assets/icons/bell.svg")
+        : root.icon == RetrospectIconName.inbox ? @image-url("../../assets/icons/inbox.svg")
+        : root.icon == RetrospectIconName.ai ? @image-url("../../assets/icons/sparkles.svg")
+        : root.icon == RetrospectIconName.search ? @image-url("../../assets/icons/search.svg")
+        : root.icon == RetrospectIconName.connections ? @image-url("../../assets/icons/lock.svg")
+        : root.icon == RetrospectIconName.agents ? @image-url("../../assets/icons/user.svg")
+        : root.icon == RetrospectIconName.discovery ? @image-url("../../assets/icons/package.svg")
+        : root.icon == RetrospectIconName.theme ? @image-url("../../assets/icons/moon.svg")
+        : root.icon == RetrospectIconName.settings ? @image-url("../../assets/icons/settings.svg")
+        : root.icon == RetrospectIconName.summary ? @image-url("../../assets/icons/file-text.svg")
+        : root.icon == RetrospectIconName.wiki ? @image-url("../../assets/icons/link.svg")
+        : root.icon == RetrospectIconName.mockups ? @image-url("../../assets/icons/photo.svg")
+        : root.icon == RetrospectIconName.browser ? @image-url("../../assets/icons/world.svg")
+        : root.icon == RetrospectIconName.git ? @image-url("../../assets/icons/git-branch.svg")
+        : root.icon == RetrospectIconName.properties ? @image-url("../../assets/icons/adjustments.svg")
+        : root.icon == RetrospectIconName.approvals ? @image-url("../../assets/icons/shield-check.svg")
+        : root.icon == RetrospectIconName.activity ? @image-url("../../assets/icons/activity.svg")
+        : root.icon == RetrospectIconName.deployments ? @image-url("../../assets/icons/device-desktop-up.svg")
+        : root.icon == RetrospectIconName.nodes ? @image-url("../../assets/icons/network.svg")
+        : root.icon == RetrospectIconName.draw ? @image-url("../../assets/icons/scribble.svg")
+        : root.icon == RetrospectIconName.add ? @image-url("../../assets/icons/plus.svg")
+        : root.icon == RetrospectIconName.remove ? @image-url("../../assets/icons/minus.svg")
+        : root.icon == RetrospectIconName.window-maximize ? @image-url("../../assets/icons/square.svg")
+        : @image-url("../../assets/icons/x.svg");
+    colorize: root.icon-color;
+}

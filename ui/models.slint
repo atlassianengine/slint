@@ -1,0 +1,100 @@
+export struct Node {
+    id: string,
+    kind: string,
+    title: string,
+    subtitle: string,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    accent: color,
+    selected: bool,
+    running: bool,
+    left-port-enabled: bool,
+    right-port-enabled: bool,
+    top-port-enabled: bool,
+    bottom-port-enabled: bool,
+    left-connected: bool,
+    right-connected: bool,
+    top-connected: bool,
+    bottom-connected: bool,
+}
+export struct WireRoute {
+    from: string,
+    to: string,
+    commands: string,
+    source-accent: color,
+    target-accent: color,
+    gradient-angle: float,
+    min-x: float,
+    min-y: float,
+    width: float,
+    height: float,
+    end-angle: float,
+    has-target-arrow: bool,
+}
+
+// A workbench surface is a projection choice, not persisted workspace state.
+export enum WorkbenchSurface { canvas, code-editor, document, planner, hub, settings, orchestrator }
+
+export enum PlannerViewMode { daily, weekly, monthly, yearly }
+
+export struct PlannerItem {
+    id: string,
+    title: string,
+    subtitle: string,
+    role: string,
+    day-key: string,
+    start-time-mins: int,
+    duration-mins: int,
+    accent: color,
+    completed: bool,
+    selected: bool,
+}
+
+export struct PlannerCalendarCell {
+    day-key: string,
+    day-number: int,
+    density: int,
+    is-current-month: bool,
+    is-today: bool,
+    is-weekend: bool,
+}
+
+export struct PlannerDayColumn {
+    id: string,
+    name: string,
+    items: [PlannerItem],
+}
+
+export struct PlannerYearSummary {
+    month-number: int,
+    month-name: string,
+    total-days: int,
+    start-weekday: int,
+}
+
+export struct PlannerDragGhost {
+    active: bool,
+    item-id: string,
+    title: string,
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+    accent: color,
+}
+
+export struct SubspaceItem {
+    id: string,
+    name: string,
+    path: string,
+    active: bool,
+}
+
+export struct NavigatorFileItem {
+    name: string,
+    path: string,
+    is-dir: bool,
+    depth: int,
+}

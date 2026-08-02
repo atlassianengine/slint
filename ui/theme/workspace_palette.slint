@@ -1,0 +1,29 @@
+// Retrospect-only visual roles. Generic semantic colors and typography live
+// in @UIKitSlint; canvas and glass treatments belong to this product surface.
+export global WorkspacePalette {
+    in-out property <color> workspace-glow;
+    in-out property <color> glass-fill;
+    in-out property <color> glass-border;
+    in-out property <length> glass-blur;
+    in-out property <color> hover-fill;
+    in-out property <color> active-fill;
+    in-out property <color> active-fill-muted;
+    in-out property <color> active-fill-quiet;
+    in-out property <color> navigator-fill;
+    in-out property <color> navigator-selection;
+    in-out property <color> canvas-input;
+    in-out property <color> canvas-border;
+    in-out property <color> canvas-grid-dot;
+    in-out property <color> canvas-grid-glow;
+    in-out property <color> connection-halo;
+    in-out property <color> selection-fill;
+    // Legacy Retrospect canvas-card roles. These are product surface values,
+    // not generic UIKit colors: their opacity and dark edge are intentional.
+    in-out property <color> node-card-fill;
+    in-out property <color> node-card-border;
+    in-out property <color> node-card-border-hover;
+    in-out property <color> node-card-glint;
+    in-out property <color> node-card-glint-hover;
+    in-out property <color> node-card-shadow;
+    in-out property <color> node-card-shadow-hover;
+}

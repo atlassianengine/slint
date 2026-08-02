@@ -1,0 +1,179 @@
+import { GlassPanel } from "glass_panel.slint";
+import { WorkspacePalette } from "../../theme/workspace_palette.slint";
+import { ScrollView } from "std-widgets.slint";
+import { Borders, Colors, Spacing, Typography, Button, ButtonVariant } from "@UIKitSlint";
+import { SubspaceItem, NavigatorFileItem } from "../../models.slint";
+
+
+
+export component SubspaceNavigator inherits GlassPanel {
+    blur-radius: WorkspacePalette.glass-blur;
+    fill: WorkspacePalette.navigator-fill;
+    rounded-radius: 14px;
+    outline-width: 1px;
+    outline: #263244;
+
+    in-out property <string> active-tab: "subspaces"; // "subspaces" | "files"
+
+    // Data models
+    in property <[SubspaceItem]> subspaces: [];
+    in property <[NavigatorFileItem]> files: [];
+
+    // Callbacks
+    callback subspace-selected(string);
+    callback create-subspace-clicked();
+    callback file-clicked(string);
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 10px;
+
+        // Header Title
+        HorizontalLayout {
+            height: 28px;
+            spacing: 8px;
+            Text {
+                text: "WORKSPACE";
+                color: #94a3b8;
+                font-size: 10px;
+                font-weight: 750;
+                letter-spacing: 1px;
+                vertical-alignment: center;
+            }
+            Rectangle { horizontal-stretch: 1; }
+            Button {
+                text: "+";
+                variant: ButtonVariant.ghost;
+                clicked => { root.create-subspace-clicked(); }
+            }
+        }
+
+        Rectangle { height: 1px; background: #263244; }
+
+        // Navigation Tabs switcher
+        HorizontalLayout {
+            height: 30px;
+            spacing: 6px;
+
+            // Subspaces Tab Button
+            TouchArea {
+                horizontal-stretch: 1;
+                clicked => { root.active-tab = "subspaces"; }
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    border-radius: 7px;
+                    background: root.active-tab == "subspaces" ? #182333 : #111827;
+                    Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: "Subspaces";
+                        color: root.active-tab == "subspaces" ? #dbeafe : #64748b;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Files Tab Button
+            TouchArea {
+                horizontal-stretch: 1;
+                clicked => { root.active-tab = "files"; }
+                Rectangle {
+                    width: parent.width;
+                    height: parent.height;
+                    border-radius: 7px;
+                    background: root.active-tab == "files" ? #182333 : #111827;
+                    Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: "Files";
+                        color: root.active-tab == "files" ? #dbeafe : #64748b;
+                        font-size: 11px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // Active List Panel
+        ScrollView {
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                spacing: Spacing.space-2;
+
+                if root.active-tab == "subspaces" : VerticalLayout {
+                    spacing: Spacing.space-2;
+
+                    for subspace in root.subspaces : TouchArea {
+                        clicked => { root.subspace-selected(subspace.id); }
+
+                        Rectangle {
+                            height: 38px;
+                            border-radius: 9px;
+                            background: subspace.active ? #182333 : transparent;
+                            border-width: 1px;
+                            border-color: subspace.active ? #334155 : transparent;
+
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 9px;
+                                spacing: Spacing.space-2;
+
+                                Text {
+                                    text: "▦";
+                                    color: subspace.active ? #7dd3fc : #64748b;
+                                    font-size: 14px;
+                                    vertical-alignment: center;
+                                }
+                                Text {
+                                    text: subspace.name;
+                                    color: subspace.active ? #e2e8f0 : #94a3b8;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if root.active-tab == "files" : VerticalLayout {
+                    spacing: Spacing.space-1;
+
+                    for file in root.files : TouchArea {
+                        clicked => { root.file-clicked(file.path); }
+
+                        Rectangle {
+                            height: 28px;
+                            background: transparent;
+
+                            HorizontalLayout {
+                                padding-left: file.depth * 12px + 6px;
+                                spacing: Spacing.space-2;
+
+                                Text {
+                                    text: file.is-dir ? "📁" : "📄";
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: file.name;
+                                    color: #e2e8f0;
+                                    font-size: 11px;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

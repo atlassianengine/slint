@@ -1,0 +1,40 @@
+import { RetrospectIcon, RetrospectIconName } from "../../../components/icons/retrospect_icon.slint";
+import { Colors } from "@UIKitSlint";
+import { WorkspaceMotion } from "../../../theme/workspace_motion.slint";
+import { WorkspacePalette } from "../../../theme/workspace_palette.slint";
+import { CanvasGeometry } from "canvas_geometry.slint";
+
+export component CanvasRailButton inherits Rectangle {
+    in property <RetrospectIconName> icon;
+    in property <string> label;
+    in property <bool> active: false;
+    callback clicked();
+
+    width: CanvasGeometry.rail-control-size;
+    height: CanvasGeometry.rail-control-size;
+    border-radius: CanvasGeometry.rail-control-size / 2;
+    background: root.active ? @radial-gradient(
+        circle 22px at 12px 7px,
+        WorkspacePalette.active-fill,
+        WorkspacePalette.active-fill-muted 62%,
+        WorkspacePalette.active-fill-quiet 100%
+    ) : input.has-hover ? WorkspacePalette.hover-fill : transparent;
+    border-width: 0px;
+    animate background { duration: WorkspaceMotion.control-duration; easing: ease-out; }
+
+    RetrospectIcon {
+        x: (parent.width - CanvasGeometry.rail-icon-size) / 2;
+        y: (parent.height - CanvasGeometry.rail-icon-size) / 2;
+        width: CanvasGeometry.rail-icon-size;
+        height: CanvasGeometry.rail-icon-size;
+        icon: root.icon;
+        icon-color: root.active ? Colors.ink-inverse : Colors.ink-muted;
+        animate icon-color { duration: WorkspaceMotion.control-duration; easing: ease-out; }
+    }
+    input := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}

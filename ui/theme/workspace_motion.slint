@@ -1,0 +1,12 @@
+// Product-local motion contract for Retrospect workspace chrome. It remains in
+// the app until another product proves the same semantic interaction contract.
+export global WorkspaceMotion {
+    out property <duration> chrome-reveal-duration: 190ms;
+    out property <duration> chrome-dismiss-duration: 145ms;
+    out property <duration> navigator-reveal-duration: 220ms;
+    out property <duration> navigator-dismiss-duration: 170ms;
+    out property <duration> control-duration: 150ms;
+    out property <duration> active-item-duration: 180ms;
+    out property <duration> label-fade-duration: 110ms;
+    out property <duration> label-fade-delay: 55ms;
+}

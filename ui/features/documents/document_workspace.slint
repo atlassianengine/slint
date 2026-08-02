@@ -1,0 +1,122 @@
+import { Button, ButtonVariant, Borders, Colors, Spacing, Typography } from "@UIKitSlint";
+import {
+    LatticeDocumentSurface, LatticeLayoutPage, LatticeSelection, LatticeTextReplacementIntent,
+} from "@LatticeSlint";
+
+component SidebarLabel inherits Text {
+    color: Colors.ink-muted;
+    font-family: Typography.font-mono;
+    font-size: Typography.size-2xs;
+    font-weight: Typography.weight-semibold;
+    vertical-alignment: center;
+}
+
+export component DocumentWorkspace inherits Rectangle {
+    in property <string> document-title: "Untitled document";
+    in property <[LatticeLayoutPage]> pages: [];
+    in property <LatticeSelection> selection: { block-id: "", anchor: 0, focus: 0 };
+    in property <bool> can-undo: false;
+    in property <bool> can-redo: false;
+
+    callback text-replacement-requested(LatticeTextReplacementIntent);
+    callback selection-changed(string, int, int, string);
+    callback undo-requested();
+    callback redo-requested();
+
+    background: Colors.paper-body;
+
+    HorizontalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: 0px;
+
+        Rectangle {
+            width: 224px;
+            background: Colors.paper-surface;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+            VerticalLayout {
+                padding-top: Spacing.space-6;
+                padding-left: Spacing.space-4;
+                padding-right: Spacing.space-4;
+                padding-bottom: Spacing.space-4;
+                spacing: Spacing.space-3;
+                SidebarLabel { height: 24px; text: "NATIVE DOCUMENT"; }
+                Text {
+                    text: root.document-title;
+                    color: Colors.ink-body;
+                    font-size: Typography.size-xs;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: root.pages.length + " laid-out page(s)";
+                    color: Colors.ink-muted;
+                    font-size: Typography.size-2xs;
+                }
+                Text {
+                    text: root.selection.block-id == "" ? "No selection" : root.selection.block-id;
+                    color: Colors.ink-disabled;
+                    font-family: Typography.font-mono;
+                    font-size: Typography.size-2xs;
+                    wrap: word-wrap;
+                }
+                Rectangle { vertical-stretch: 1; }
+            }
+        }
+
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Colors.paper-body;
+            VerticalLayout {
+                spacing: 0px;
+                Rectangle {
+                    height: 48px;
+                    background: Colors.paper-surface;
+                    border-width: Borders.width;
+                    border-color: Colors.border-subtle;
+                    HorizontalLayout {
+                        padding-left: Spacing.space-3;
+                        padding-right: Spacing.space-3;
+                        spacing: Spacing.space-2;
+                        alignment: center;
+                        Button {
+                            text: "Undo";
+                            variant: ButtonVariant.ghost;
+                            disabled: !root.can-undo;
+                            clicked => { root.undo-requested(); }
+                        }
+                        Button {
+                            text: "Redo";
+                            variant: ButtonVariant.ghost;
+                            disabled: !root.can-redo;
+                            clicked => { root.redo-requested(); }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: "Canonical V2 · native layout";
+                            color: Colors.ink-muted;
+                            font-family: Typography.font-mono;
+                            font-size: Typography.size-2xs;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+                Rectangle {
+                    vertical-stretch: 1;
+                    background: transparent;
+                    LatticeDocumentSurface {
+                        width: parent.width;
+                        height: parent.height;
+                        document-title: root.document-title;
+                        pages: root.pages;
+                        selection: root.selection;
+                        text-replacement-requested(intent) => { root.text-replacement-requested(intent); }
+                        selection-changed(block-id, anchor, focus, source-text) => {
+                            root.selection-changed(block-id, anchor, focus, source-text);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,116 @@
+import { ScrollView } from "std-widgets.slint";
+import { Borders, Colors, Motion, Spacing, Typography, ScrollArea } from "@UIKitSlint";
+
+export struct SkillItem {
+    id: string,
+    name: string,
+    description: string,
+    path: string,
+    enabled: bool,
+}
+
+export component SkillsManager inherits Rectangle {
+    in property <[SkillItem]> skills;
+    in property <string> active-skill-instructions: "";
+    in-out property <string> selected-skill-id: "";
+
+    callback skill-selected(string);
+
+    background: Colors.paper-body;
+
+    HorizontalLayout {
+        padding: Spacing.space-4;
+        spacing: Spacing.space-4;
+
+        // Left List: Skills Catalog
+        Rectangle {
+            width: 320px;
+            background: Colors.paper-sunken;
+            border-radius: Borders.radius-lg;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+
+            VerticalLayout {
+                padding: Spacing.space-3;
+                spacing: Spacing.space-3;
+
+                Text {
+                    text: "Auto-Discovered Skills";
+                    color: Colors.ink-headers;
+                    font-size: Typography.size-sm;
+                    font-weight: Typography.weight-semibold;
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: Spacing.space-2;
+                        for skill in root.skills: Rectangle {
+                            height: 56px;
+                            background: skill.id == root.selected-skill-id ? Colors.paper-raised : Colors.paper-surface;
+                            border-radius: Borders.radius-md;
+                            border-width: Borders.width;
+                            border-color: skill.id == root.selected-skill-id ? Colors.primary : Colors.border-subtle;
+
+                            TouchArea {
+                                clicked => {
+                                    root.selected-skill-id = skill.id;
+                                    root.skill-selected(skill.id);
+                                }
+                            }
+
+                            VerticalLayout {
+                                padding: Spacing.space-3;
+                                spacing: 2px;
+                                Text {
+                                    text: skill.name;
+                                    color: Colors.ink-body;
+                                    font-size: Typography.size-sm;
+                                    font-weight: Typography.weight-medium;
+                                }
+                                Text {
+                                    text: skill.description;
+                                    color: Colors.ink-muted;
+                                    font-size: Typography.size-xs;
+                                    wrap: word-wrap;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Right Viewer: SKILL.md Instructions
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Colors.paper-surface;
+            border-radius: Borders.radius-lg;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+
+            VerticalLayout {
+                padding: Spacing.space-4;
+                spacing: Spacing.space-3;
+
+                Text {
+                    text: "SKILL.md Instructions & Reference";
+                    color: Colors.ink-headers;
+                    font-size: Typography.size-sm;
+                    font-weight: Typography.weight-semibold;
+                }
+
+                ScrollArea {
+                    vertical-stretch: 1;
+                    Text {
+                        text: root.active-skill-instructions != "" ? root.active-skill-instructions : "Select a skill from the list to view its SKILL.md instructions.";
+                        color: Colors.ink-body;
+                        font-family: Typography.font-mono;
+                        font-size: Typography.size-xs;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+}

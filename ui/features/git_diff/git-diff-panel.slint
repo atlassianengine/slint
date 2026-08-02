@@ -1,0 +1,148 @@
+import { ScrollView } from "std-widgets.slint";
+import { Borders, Colors, Motion, Spacing, Typography } from "../../../packages/frontend/ui-kit-slint/ui/theme/mod.slint";
+import { Button, ButtonVariant } from "../../../packages/frontend/ui-kit-slint/ui/components/actions/button.slint";
+import { Input } from "../../../packages/frontend/ui-kit-slint/ui/components/forms/input.slint";
+
+export struct GitFileStatusItem {
+    path: string,
+    status: string, // "M" | "A" | "D" | "U"
+    staged: bool,
+}
+
+export component GitDiffPanel inherits Rectangle {
+    in property <[GitFileStatusItem]> files;
+    in property <string> selected-file-path: "";
+    in property <string> diff-text: "";
+    in-out property <string> commit-message: "";
+
+    callback file-selected(string);
+    callback stage-file-requested(string);
+    callback unstage-file-requested(string);
+    callback commit-requested(string);
+
+    background: Colors.paper-body;
+
+    HorizontalLayout {
+        padding: Spacing.space-4;
+        spacing: Spacing.space-4;
+
+        // File List Column
+        Rectangle {
+            width: 300px;
+            background: Colors.paper-sunken;
+            border-radius: Borders.radius-lg;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+
+            VerticalLayout {
+                padding: Spacing.space-3;
+                spacing: Spacing.space-3;
+
+                Text {
+                    text: "Git Changes";
+                    color: Colors.ink-headers;
+                    font-size: Typography.size-sm;
+                    font-weight: Typography.weight-semibold;
+                }
+
+                ScrollView {
+                    vertical-stretch: 1;
+                    VerticalLayout {
+                        spacing: Spacing.space-2;
+                        for file in root.files: Rectangle {
+                            height: 44px;
+                            background: file.path == root.selected-file-path ? Colors.paper-raised : Colors.paper-surface;
+                            border-radius: Borders.radius-md;
+                            border-width: Borders.width;
+                            border-color: file.path == root.selected-file-path ? Colors.primary : Colors.border-subtle;
+
+                            TouchArea {
+                                clicked => { root.file-selected(file.path); }
+                            }
+
+                            HorizontalLayout {
+                                padding-left: Spacing.space-3;
+                                padding-right: Spacing.space-3;
+                                spacing: Spacing.space-2;
+
+                                Text {
+                                    text: file.status;
+                                    color: file.status == "M" ? Colors.status-warning : (file.status == "A" ? Colors.status-success : Colors.status-critical);
+                                    font-family: Typography.font-mono;
+                                    font-size: Typography.size-xs;
+                                    font-weight: Typography.weight-bold;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    text: file.path;
+                                    color: Colors.ink-body;
+                                    font-size: Typography.size-xs;
+                                    vertical-alignment: center;
+                                    horizontal-stretch: 1;
+                                    wrap: word-wrap;
+                                }
+
+                                Button {
+                                    text: file.staged ? "-" : "+";
+                                    variant: ButtonVariant.ghost;
+                                    clicked => {
+                                        if file.staged {
+                                            root.unstage-file-requested(file.path);
+                                        } else {
+                                            root.stage-file-requested(file.path);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Commit Input
+                Input {
+                    text <=> root.commit-message;
+                    placeholder: "Commit message...";
+                }
+
+                Button {
+                    text: "Commit Changes";
+                    variant: ButtonVariant.default;
+                    clicked => { root.commit-requested(root.commit-message); }
+                }
+            }
+        }
+
+        // Diff Viewer Column
+        Rectangle {
+            horizontal-stretch: 1;
+            background: Colors.paper-surface;
+            border-radius: Borders.radius-lg;
+            border-width: Borders.width;
+            border-color: Colors.border-subtle;
+
+            VerticalLayout {
+                padding: Spacing.space-4;
+                spacing: Spacing.space-3;
+
+                Text {
+                    text: root.selected-file-path != "" ? "Diff: " + root.selected-file-path : "Select a changed file to view git diff";
+                    color: Colors.ink-headers;
+                    font-size: Typography.size-sm;
+                    font-weight: Typography.weight-semibold;
+                }
+
+                ScrollArea {
+                    vertical-stretch: 1;
+                    Text {
+                        text: root.diff-text != "" ? root.diff-text : "No diff available.";
+                        color: Colors.ink-body;
+                        font-family: Typography.font-mono;
+                        font-size: Typography.size-xs;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+    }
+}

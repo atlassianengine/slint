@@ -1,0 +1,17 @@
+import { WorkspacePalette } from "../../theme/workspace_palette.slint";
+
+// Retrospect-local semantic glass surface. Renderer mechanics remain in the
+// Slint fork; this component preserves ordinary Slint child composition.
+export component GlassPanel inherits Rectangle {
+    in property <length> blur-radius: WorkspacePalette.glass-blur;
+    in property <length> rounded-radius: 0px;
+    in property <brush> fill: WorkspacePalette.glass-fill;
+    in property <brush> outline: WorkspacePalette.glass-border;
+    in property <length> outline-width: 1px;
+
+    background-blur: root.blur-radius;
+    border-radius: root.rounded-radius;
+    background: root.fill;
+    border-color: root.outline;
+    border-width: root.outline-width;
+}

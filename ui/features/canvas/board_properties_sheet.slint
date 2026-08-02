@@ -1,0 +1,96 @@
+import { Button, ButtonSize, ButtonVariant, Colors, Sheet, SheetSide, Slider, Spacing, Typography } from "@UIKitSlint";
+
+// Product composition over the centralized UIKit Sheet. The sheet owns no
+// board state: it exposes the three appearance intents to the Rust host.
+export component BoardPropertiesSheet inherits Rectangle {
+    in-out property <bool> open: false;
+    in property <image> background-image;
+    in property <string> background-path;
+    in property <float> background-dim: 0.55;
+    callback choose-image();
+    callback clear-image();
+    callback dim-changed(float);
+
+    Sheet {
+        width: parent.width;
+        height: parent.height;
+        open <=> root.open;
+        side: SheetSide.right;
+        panel-extent: 352px;
+        title: "Board properties";
+        description: "Appearance settings for this canvas.";
+
+        VerticalLayout {
+            spacing: Spacing.space-4;
+
+            Text {
+                text: "BACKGROUND IMAGE";
+                color: Colors.ink-muted;
+                font-size: Typography.size-sm;
+                font-weight: Typography.weight-semibold;
+                letter-spacing: 1px;
+            }
+
+            Rectangle {
+                height: 148px;
+                border-radius: 10px;
+                border-width: 1px;
+                border-color: Colors.border-subtle;
+                background: Colors.paper-sunken;
+                clip: true;
+                if root.background-path != "" : Image {
+                    width: parent.width;
+                    height: parent.height;
+                    source: root.background-image;
+                    image-fit: cover;
+                }
+                if root.background-path == "" : Text {
+                    width: parent.width;
+                    height: parent.height;
+                    text: "No image selected";
+                    color: Colors.ink-muted;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                text: root.background-path == "" ? "Images stay local to this board." : root.background-path;
+                color: Colors.ink-muted;
+                font-size: Typography.size-sm;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                spacing: Spacing.space-2;
+                Button {
+                    text: root.background-path == "" ? "Choose image" : "Replace image";
+                    size: ButtonSize.sm;
+                    variant: ButtonVariant.default;
+                    clicked => { root.choose-image(); }
+                }
+                if root.background-path != "" : Button {
+                    text: "Clear";
+                    size: ButtonSize.sm;
+                    variant: ButtonVariant.outline;
+                    clicked => { root.clear-image(); }
+                }
+            }
+
+            Text {
+                text: "DIM OVERLAY  " + round(root.background-dim * 100) + "%";
+                color: Colors.ink-muted;
+                font-size: Typography.size-sm;
+                font-weight: Typography.weight-semibold;
+                letter-spacing: 1px;
+            }
+            Slider {
+                value: root.background-dim * 100;
+                minimum: 0;
+                maximum: 100;
+                disabled: root.background-path == "";
+                changed(value) => { root.dim-changed(value / 100); }
+            }
+        }
+    }
+}

@@ -1,0 +1,124 @@
+import {
+    HeaderIconButton,
+    HeaderRailItem,
+} from "header_rail_item.slint";
+import { RetrospectIconName } from "../icons/retrospect_icon.slint";
+import { WorkspaceChrome } from "../../theme/workspace_chrome.slint";
+import { PlannerViewMode, WorkbenchSurface } from "../../models.slint";
+import { WorkspacePalette } from "../../theme/workspace_palette.slint";
+import { GlassPanel } from "glass_panel.slint";
+
+component HeaderRail inherits GlassPanel {
+    in property <bool> live-blur: false;
+    height: WorkspaceChrome.rail-surface-height;
+    blur-radius: root.live-blur ? WorkspacePalette.glass-blur : 0px;
+    rounded-radius: WorkspaceChrome.rail-surface-radius;
+    fill: WorkspacePalette.glass-fill;
+    outline-width: WorkspaceChrome.rail-border-width;
+    outline: WorkspacePalette.glass-border;
+    clip: true;
+}
+
+export component TransparentHeaderRail inherits Rectangle {
+    in property <bool> navigator-open;
+    in property <WorkbenchSurface> active-surface: WorkbenchSurface.canvas;
+    in property <PlannerViewMode> planner-view-mode: PlannerViewMode.daily;
+    callback toggle-navigator();
+    callback surface-selected(WorkbenchSurface);
+    callback planner-view-selected(PlannerViewMode);
+    callback toggle-ai-manager-modal();
+
+    private property <string> active-mode: "Kanban";
+    private property <string> active-utility: "";
+    private property <string> active-admin: "";
+    // These are content-fit envelopes, not arbitrary max widths. The active
+    // view owns the only expanded item in a group, so collapsed groups stay
+    // tight while the selected label still has room for its glyph.
+    private property <length> time-rail-width:
+        root.planner-view-mode == PlannerViewMode.monthly ? 262px :
+        root.planner-view-mode == PlannerViewMode.weekly ? 250px :
+        root.planner-view-mode == PlannerViewMode.yearly ? 248px :
+        root.planner-view-mode == PlannerViewMode.daily ? 240px : 250px;
+    private property <length> mode-rail-width:
+        root.active-mode == "Kanban" ? 196px :
+        root.active-mode == "Tasks" ? 182px :
+        root.active-mode == "Hub" ? 168px : 196px;
+
+    height: 52px;
+    background: transparent;
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 12px;
+        alignment: center;
+
+        HeaderRail {
+            live-blur: true;
+            width: WorkspaceChrome.header-workspace-rail-width;
+            HorizontalLayout {
+                padding: WorkspaceChrome.rail-padding;
+                spacing: WorkspaceChrome.rail-gap;
+                alignment: start;
+                HeaderIconButton { icon: RetrospectIconName.canvas; label: "Canvas"; active: root.active-surface == WorkbenchSurface.canvas; clicked => { root.surface-selected(WorkbenchSurface.canvas); } }
+                HeaderIconButton { icon: RetrospectIconName.code; label: "Code editor"; active: root.active-surface == WorkbenchSurface.code-editor; clicked => { root.surface-selected(WorkbenchSurface.code-editor); } }
+                HeaderIconButton { icon: RetrospectIconName.summary; label: "Document"; active: root.active-surface == WorkbenchSurface.document; clicked => { root.surface-selected(WorkbenchSurface.document); } }
+                HeaderIconButton { icon: RetrospectIconName.day; label: "Planner"; active: root.active-surface == WorkbenchSurface.planner; clicked => { root.surface-selected(WorkbenchSurface.planner); } }
+            }
+        }
+        HeaderRail {
+            live-blur: true;
+            width: root.time-rail-width;
+            HorizontalLayout {
+                padding: WorkspaceChrome.rail-padding;
+                spacing: WorkspaceChrome.rail-gap;
+                alignment: start;
+                HeaderIconButton { icon: RetrospectIconName.sidebar; label: "Subspaces"; active: root.navigator-open; clicked => { root.toggle-navigator(); } }
+                HeaderRailItem { icon: RetrospectIconName.day; label: "DAY"; active: root.active-surface == WorkbenchSurface.planner && root.planner-view-mode == PlannerViewMode.daily; expanded-width: 78px; clicked => { root.surface-selected(WorkbenchSurface.planner); root.planner-view-selected(PlannerViewMode.daily); } }
+                HeaderRailItem { icon: RetrospectIconName.week; label: "WEEK"; active: root.active-surface == WorkbenchSurface.planner && root.planner-view-mode == PlannerViewMode.weekly; expanded-width: 88px; clicked => { root.surface-selected(WorkbenchSurface.planner); root.planner-view-selected(PlannerViewMode.weekly); } }
+                HeaderRailItem { icon: RetrospectIconName.month; label: "MONTH"; active: root.active-surface == WorkbenchSurface.planner && root.planner-view-mode == PlannerViewMode.monthly; expanded-width: 100px; clicked => { root.surface-selected(WorkbenchSurface.planner); root.planner-view-selected(PlannerViewMode.monthly); } }
+                HeaderRailItem { icon: RetrospectIconName.year; label: "YEAR"; active: root.active-surface == WorkbenchSurface.planner && root.planner-view-mode == PlannerViewMode.yearly; expanded-width: 86px; clicked => { root.surface-selected(WorkbenchSurface.planner); root.planner-view-selected(PlannerViewMode.yearly); } }
+            }
+        }
+        HeaderRail {
+            width: root.mode-rail-width;
+            HorizontalLayout {
+                padding: WorkspaceChrome.rail-padding;
+                spacing: WorkspaceChrome.rail-gap;
+                alignment: start;
+                HeaderRailItem { icon: RetrospectIconName.summary; label: "KANBAN"; active: root.active-mode == "Kanban"; expanded-width: 106px; clicked => { root.active-mode = "Kanban"; } }
+                HeaderRailItem { icon: RetrospectIconName.hub; label: "HUB"; active: root.active-mode == "Hub"; expanded-width: 78px; clicked => { root.active-mode = "Hub"; } }
+                HeaderRailItem { icon: RetrospectIconName.tasks; label: "TASKS"; active: root.active-mode == "Tasks"; expanded-width: 92px; clicked => { root.active-mode = "Tasks"; } }
+            }
+        }
+        Rectangle { horizontal-stretch: 1; background: transparent; }
+        HeaderRail {
+            live-blur: true;
+            width: WorkspaceChrome.header-utility-rail-width;
+            HorizontalLayout {
+                padding: WorkspaceChrome.rail-padding;
+                spacing: WorkspaceChrome.rail-gap;
+                alignment: start;
+                HeaderIconButton { icon: RetrospectIconName.capture; label: "Capture"; active: root.active-utility == "Capture"; clicked => { root.active-utility = "Capture"; } }
+                HeaderIconButton { icon: RetrospectIconName.notifications; label: "Notifications"; active: root.active-utility == "Notifications"; clicked => { root.active-utility = "Notifications"; } }
+                HeaderIconButton { icon: RetrospectIconName.inbox; label: "Inbox"; active: root.active-utility == "Inbox"; clicked => { root.active-utility = "Inbox"; } }
+                HeaderIconButton { icon: RetrospectIconName.ai; label: "AI orchestrator"; active: root.active-surface == WorkbenchSurface.orchestrator; clicked => { root.active-utility = "AI"; root.surface-selected(WorkbenchSurface.orchestrator); } }
+                HeaderIconButton { icon: RetrospectIconName.search; label: "Search"; active: root.active-utility == "Search"; clicked => { root.active-utility = "Search"; } }
+            }
+        }
+        HeaderRail {
+            width: WorkspaceChrome.header-admin-rail-width;
+            HorizontalLayout {
+                padding: WorkspaceChrome.rail-padding;
+                spacing: WorkspaceChrome.rail-gap;
+                alignment: start;
+                HeaderIconButton { icon: RetrospectIconName.connections; label: "Connections"; active: root.active-surface == WorkbenchSurface.settings; clicked => { root.active-admin = "Connections"; root.surface-selected(WorkbenchSurface.settings); } }
+                HeaderIconButton { icon: RetrospectIconName.ai; label: "AI manager"; active: root.active-surface == WorkbenchSurface.orchestrator; clicked => { root.active-admin = "AI"; root.toggle-ai-manager-modal(); } }
+                HeaderIconButton { icon: RetrospectIconName.agents; label: "Agents"; active: root.active-surface == WorkbenchSurface.orchestrator; clicked => { root.active-admin = "Agents"; root.surface-selected(WorkbenchSurface.orchestrator); } }
+                HeaderIconButton { icon: RetrospectIconName.discovery; label: "Discovery"; active: root.active-surface == WorkbenchSurface.orchestrator; clicked => { root.active-admin = "Discovery"; root.surface-selected(WorkbenchSurface.orchestrator); } }
+                HeaderIconButton { icon: RetrospectIconName.theme; label: "Theme"; active: root.active-surface == WorkbenchSurface.settings; clicked => { root.active-admin = "Theme"; root.surface-selected(WorkbenchSurface.settings); } }
+                HeaderIconButton { icon: RetrospectIconName.settings; label: "Settings"; active: root.active-surface == WorkbenchSurface.settings; clicked => { root.active-admin = "Settings"; root.surface-selected(WorkbenchSurface.settings); } }
+            }
+        }
+    }
+}

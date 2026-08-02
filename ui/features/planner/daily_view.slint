@@ -1,0 +1,216 @@
+import { ScrollView } from "std-widgets.slint";
+import { Colors } from "@UIKitSlint";
+import { PlannerDayColumn } from "../../models.slint";
+
+export component DailyView inherits Rectangle {
+    in property <[PlannerDayColumn]> columns;
+    in property <string> active-day-key;
+    in property <[string]> commitments: ["1. Must win", "2. Supporting", "3. Maintenance"];
+
+    callback item-selected(string);
+
+    background: Colors.paper-body;
+
+    ScrollView {
+        width: 100%;
+        height: 100%;
+
+        VerticalLayout {
+            width: 100%;
+            padding: 12px;
+            spacing: 12px;
+
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                min-height: 520px;
+                background: Colors.paper-surface;
+                border-color: Colors.border-subtle;
+                border-width: 1px;
+                border-radius: 12px;
+
+                VerticalLayout {
+                    width: 100%;
+                    height: 100%;
+                    spacing: 0px;
+
+                    // Column headers and task card lists.
+                    HorizontalLayout {
+                        width: 100%;
+                        min-height: 36px;
+                        spacing: 0px;
+
+                        for column[idx] in root.columns : Rectangle {
+                            width: parent.width / Math.max(root.columns.length, 1);
+                            background: Colors.paper-surface;
+
+                            VerticalLayout {
+                                width: 100%;
+                                height: 100%;
+
+                        Rectangle {
+                            height: 36px;
+                            width: 100%;
+                            border-color: Colors.border-subtle;
+                            border-width: 1px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+
+                                    HorizontalLayout {
+                                        width: 100%;
+                                        alignment: space-between;
+
+                                        Text {
+                                            text: column.name;
+                                            color: Colors.ink-body;
+                                            font-size: 13px;
+                                            font-weight: 700;
+                                        }
+
+                                        Rectangle {
+                                            width: 20px;
+                                            height: 20px;
+                                            border-radius: 10px;
+                                            background: Colors.paper-body;
+                                            border-color: Colors.border-subtle;
+                                            border-width: 1px;
+
+                                            Text {
+                                                width: 100%;
+                                                height: 100%;
+                                                text: "+";
+                                                horizontal-alignment: center;
+                                                vertical-alignment: center;
+                                                font-size: 12px;
+                                                color: Colors.ink-muted;
+                                                font-weight: 700;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                ScrollView {
+                                    width: 100%;
+                                    height: 100%;
+
+                                    VerticalLayout {
+                                        width: 100%;
+                                        padding: 6px;
+                                        spacing: 6px;
+                                        alignment: start;
+
+                                        for item in column.items : Rectangle {
+                                            background: item.accent.with-alpha(0.16);
+                                            border-radius: 999px;
+                                            border-color: item.accent;
+                                            border-width: 1px;
+                                            min-height: 64px;
+                                            padding-left: 12px;
+                                            padding-top: 8px;
+                                            padding-bottom: 8px;
+
+                                            TouchArea {
+                                                width: 100%;
+                                                height: 100%;
+                                                clicked => {
+                                                    root.item-selected(item.id);
+                                                }
+                                            }
+
+                                            VerticalLayout {
+                                                width: 100%;
+                                                height: 100%;
+                                                spacing: 4px;
+
+                                                HorizontalLayout {
+                                                    width: 100%;
+                                                    alignment: space-between;
+
+                                                    Text {
+                                                        text: item.title;
+                                                        color: Colors.ink-body;
+                                                        font-size: 12px;
+                                                        font-weight: 700;
+                                                        overflow: elide;
+                                                    }
+
+                                                    Rectangle {
+                                                        border-radius: 999px;
+                                                        background: item.accent.with-alpha(0.20);
+                                                        border-color: item.accent;
+                                                        border-width: 1px;
+                                                        padding-left: 8px;
+                                                        padding-right: 8px;
+                                                        height: 18px;
+
+                                                        Text {
+                                                            text: item.role;
+                                                            color: Colors.ink-body;
+                                                            font-size: 10px;
+                                                            font-weight: 600;
+                                                            horizontal-alignment: center;
+                                                            vertical-alignment: center;
+                                                        }
+                                                    }
+                                                }
+
+                                                if item.subtitle != "" : Text {
+                                                    text: item.subtitle;
+                                                    color: Colors.ink-muted;
+                                                    font-size: 11px;
+                                                    overflow: elide;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if idx < root.columns.length - 1 : Rectangle {
+                                x: parent.width - 1px;
+                                width: 1px;
+                                height: parent.height;
+                                y: 0px;
+                                background: Colors.border-subtle;
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 100%;
+                        height: 1px;
+                        background: Colors.border-subtle;
+                    }
+
+                    // Bottom commitment list.
+                    Rectangle {
+                        width: 100%;
+                        min-height: 96px;
+                        padding: 12px;
+                        background: Colors.paper-body;
+
+                        VerticalLayout {
+                            width: 100%;
+                            spacing: 8px;
+
+                            Text {
+                                text: "DailyRoleSummary";
+                                color: Colors.ink-body;
+                                font-size: 13px;
+                                font-weight: 700;
+                            }
+
+                        for commitment in root.commitments : Text {
+                            width: 100%;
+                            text: commitment;
+                            color: Colors.ink-body;
+                            font-size: 11px;
+                            font-weight: 600;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+}

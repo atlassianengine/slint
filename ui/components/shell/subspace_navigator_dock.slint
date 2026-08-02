@@ -1,0 +1,49 @@
+import { WorkspaceMotion } from "../../theme/workspace_motion.slint";
+import { SubspaceNavigator } from "subspace_navigator.slint";
+import { SubspaceItem, NavigatorFileItem } from "../../models.slint";
+
+// The clipped outer slot owns reflow; the fixed-width navigator owns its
+// contents. This avoids scaling text while the canvas column squidges.
+export component SubspaceNavigatorDock inherits Rectangle {
+    in property <bool> open;
+    in property <bool> pinned;
+    callback peek-dismissed();
+
+    in property <[SubspaceItem]> subspaces: [];
+    in property <[NavigatorFileItem]> files: [];
+    callback subspace-selected(string);
+    callback create-subspace-clicked();
+    callback file-clicked(string);
+
+    width: root.open ? 240px : 0px;
+    clip: true;
+    animate width {
+        duration: root.open ? WorkspaceMotion.navigator-reveal-duration : WorkspaceMotion.navigator-dismiss-duration;
+        easing: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        changed has-hover => {
+            if !self.has-hover && !root.pinned {
+                root.peek-dismissed();
+            }
+        }
+    }
+
+    SubspaceNavigator {
+        width: 240px;
+        height: parent.height;
+        opacity: root.open ? 1 : 0;
+        subspaces: root.subspaces;
+        files: root.files;
+        subspace-selected(id) => { root.subspace-selected(id); }
+        create-subspace-clicked => { root.create-subspace-clicked(); }
+        file-clicked(path) => { root.file-clicked(path); }
+        animate opacity {
+            duration: root.open ? WorkspaceMotion.chrome-reveal-duration : WorkspaceMotion.chrome-dismiss-duration;
+            easing: ease-out;
+        }
+    }
+}
