@@ -8,6 +8,7 @@ publish = false
 slint-build = { path = "api/rs/build", features = ["experimental-module-builds"] }
 
 [workspace]
+resolver = "3"
 members = [
   'api/cpp',
   'api/node',
@@ -78,7 +79,9 @@ slint = { path = "api/rs/slint", features = ["backend-winit", "renderer-femtovg"
 [dev-dependencies]
 tempfile = "3"
 
-resolver = "3"
+[patch.crates-io]
+slint = { path = "api/rs/slint" }
+slint-build = { path = "api/rs/build" }
 
 [workspace.package]
 description = "GUI toolkit to efficiently develop fluid graphical user interfaces for embedded devices and desktop applications"
