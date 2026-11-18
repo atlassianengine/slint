@@ -575,6 +575,11 @@ pub enum InternalEvent {
     Mouse(crate::input::BackendMouseEvent),
     /// A key event, including input method composition updates.
     Key(crate::input::InternalKeyEvent),
+    /// Per-window normalized pressure from the native input backend. This
+    /// internal event is dispatched immediately before the matching pointer
+    /// sample; TouchArea exposes it without adding an app-specific device
+    /// registry or modifying every MouseEvent constructor.
+    PointerPressure(f32),
     /// A touch point update, which the runtime turns into pointer or gesture events.
     Touch {
         /// The id of the finger that produced the event.
@@ -656,7 +661,7 @@ impl InternalEvent {
             }
             // There's no public touch event, and the pointer events the runtime synthesizes from
             // a touch point carry a finger id that `WindowEvent` can't express.
-            Self::Touch { .. } => None,
+            Self::Touch { .. } | Self::PointerPressure(_) => None,
         }
     }
 
@@ -666,7 +671,7 @@ impl InternalEvent {
             Self::Mouse(event) => crate::input::MouseEvent::from(*event)
                 .position()
                 .map(crate::lengths::logical_position_to_api),
-            Self::Key(_) => None,
+            Self::Key(_) | Self::PointerPressure(_) => None,
             Self::Touch { position, .. } => {
                 Some(crate::lengths::logical_position_to_api(*position))
             }

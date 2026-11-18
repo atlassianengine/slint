@@ -790,6 +790,15 @@ impl Window {
                     event_time,
                     history,
                 } => self.0.process_touch_input(id, position, phase, event_time, history).into(),
+                crate::platform::InternalEvent::PointerPressure(pressure) => {
+                    // No user-facing pointer event is emitted for a pressure
+                    // update alone. The very next native mouse/touch event
+                    // synchronously reads this window-local sample.
+                    self.0.pointer_pressure.set(
+                        if pressure.is_finite() { pressure.clamp(0.0, 1.0) } else { 1.0 },
+                    );
+                    WindowEventDispatchResult::Accepted
+                }
             },
         };
         if let Some(event_for_hook) = event_for_hook

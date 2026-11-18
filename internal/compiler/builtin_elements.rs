@@ -1404,6 +1404,11 @@ fn build(l: &mut Loader) {
         out property <length> mouse-x;
         /// Set by the `TouchArea` to the position of the mouse within it.
         out property <length> mouse-y;
+        /// Normalized pressure of the pointer sample that most recently moved
+        /// or pressed inside this TouchArea. Real pressure comes only from
+        /// hardware input backends that expose force; ordinary mouse and
+        /// unsupported devices report 1.0.
+        out property <float> pressure: 1.0;
         /// Set by the `TouchArea` to the position of the mouse at the moment it was last pressed.
         out property <length> pressed-x;
         /// Set by the `TouchArea` to the position of the mouse at the moment it was last pressed.

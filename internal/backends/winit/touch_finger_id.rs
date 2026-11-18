@@ -47,7 +47,9 @@ impl<Id: Copy + PartialEq> TouchFingerIdAllocator<Id> {
         Some(index as i32)
     }
 
-    #[cfg(any(target_vendor = "apple", test))]
+    /// Whether the backend currently tracks any active touch/pen contact.
+    /// Used on Apple platforms for gesture routing and on Windows/desktop to
+    /// avoid resetting real pen pressure when compatibility mouse events arrive.
     pub(crate) fn has_active_touches(&self) -> bool {
         self.slots.iter().any(Option::is_some)
     }

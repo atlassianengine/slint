@@ -45,6 +45,9 @@ pub struct TouchArea {
     /// FIXME: should maybe be as parameter to the mouse event instead. Or at least just one property
     pub mouse_x: Property<LogicalLength>,
     pub mouse_y: Property<LogicalLength>,
+    /// Normalized pressure from the current native pointer sample.
+    /// Default/unsupported mouse and touch devices use 1.0.
+    pub pressure: Property<f32>,
     pub mouse_cursor: Property<MouseCursorInner>,
     pub clicked: Callback<VoidArg>,
     pub double_clicked: Callback<VoidArg>,
@@ -121,6 +124,12 @@ impl Item for TouchArea {
         if !self.enabled() {
             return InputEventResult::EventIgnored;
         }
+        // Pressure is sampled on the same window and dispatch turn as this
+        // pointer event, not polled later from a different device/session.
+        Self::FIELD_OFFSETS
+            .pressure()
+            .apply_pin(self)
+            .set(window_adapter.window().0.pointer_pressure.get());
         match event {
             MouseEvent::Pressed { position, button, touch_finger_id, .. } => {
                 self.grabbed.set(true);

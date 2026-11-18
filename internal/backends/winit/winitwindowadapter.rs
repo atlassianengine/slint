@@ -69,6 +69,50 @@ fn winit_touch_phase(phase: winit::event::TouchPhase) -> corelib::input::TouchPh
     }
 }
 
+/// Device-reported force is only meaningful when Winit delivered it with
+/// the current touch sample. Do not infer pen pressure from mouse buttons or
+/// velocity. Unsupported devices retain the traditional full-strength input.
+fn pointer_sample_pressure(force: Option<winit::event::Force>) -> f32 {
+    let normalized = match force {
+        Some(winit::event::Force::Normalized(value)) => value,
+        Some(winit::event::Force::Calibrated {
+            force, max_possible_force, ..
+        }) if max_possible_force.is_finite() && max_possible_force > 0.0 =>
+            force / max_possible_force,
+        _ => 1.0,
+    };
+    if normalized.is_finite() {
+        normalized.clamp(0.0, 1.0) as f32
+    } else {
+        1.0
+    }
+}
+
+fn pressure_for_touch(
+    force: Option<winit::event::Force>,
+    touch_id: u64,
+    window: &winit::window::Window,
+    client_position_px: winit::dpi::PhysicalPosition<f64>,
+) -> f32 {
+    if force.is_some() {
+        return pointer_sample_pressure(force);
+    }
+    // Windows Ink may have a pressure mask for this active touch even when
+    // Winit did not surface Force. A failed Win32 query is simply unknown.
+    // Neither pen position nor pen identity is guessed from mouse callbacks.
+    #[cfg(target_os = "windows")]
+    if let Some(pressure) = crate::windows_pen::normalized_pressure_for_touch_id(
+        touch_id,
+        window,
+        client_position_px,
+    ) {
+        return pressure;
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = (touch_id, window, client_position_px);
+    1.0
+}
+
 pub(crate) fn position_to_winit(pos: &corelib::api::WindowPosition) -> winit::dpi::Position {
     match pos {
         corelib::api::WindowPosition::Logical(pos) => {
@@ -1697,6 +1741,14 @@ impl WinitWindowAdapter {
                 let position = position.to_logical(runtime_window.scale_factor() as f64);
                 let cursor_pos = euclid::point2(position.x, position.y);
                 self.cursor_pos.set(cursor_pos);
+                // A normal mouse move is not a continuation of a pen-force
+                // contact. Restore full mouse pressure before dispatching its
+                // (possibly coalesced) movement.
+                if !self.touch_finger_ids.borrow().has_active_touches() {
+                    self.dispatch_internal_event(
+                        corelib::platform::InternalEvent::PointerPressure(1.0),
+                    );
+                }
                 // winit sends this event at a very high frequency, so coalesce the moves.
                 self.shared_backend_data.buffer_mouse_move(&self.self_weak, cursor_pos);
             }
@@ -1724,6 +1776,13 @@ impl WinitWindowAdapter {
                 });
             }
             WinitWindowEvent::MouseInput { state, button, .. } => {
+                // Mouse has no pressure sensor. Force is supplied only by
+                // touch/pen events that actually carry a calibrated sample.
+                if !self.touch_finger_ids.borrow().has_active_touches() {
+                    self.dispatch_internal_event(
+                        corelib::platform::InternalEvent::PointerPressure(1.0),
+                    );
+                }
                 let button = match button {
                     winit::event::MouseButton::Left => PointerEventButton::Left,
                     winit::event::MouseButton::Right => PointerEventButton::Right,
@@ -1762,6 +1821,12 @@ impl WinitWindowAdapter {
                 self.dispatch_internal_event(ev);
             }
             WinitWindowEvent::Touch(touch) => {
+                // Preserve genuine normalized pen/touch force if Winit exposes
+                // it on this platform/device. Missing force is mouse-like
+                // full strength, not a fabricated mid-pressure sample.
+                self.dispatch_internal_event(corelib::platform::InternalEvent::PointerPressure(
+                    pressure_for_touch(touch.force, touch.id, winit_window, touch.location),
+                ));
                 let location = touch.location.to_logical(runtime_window.scale_factor() as f64);
                 let position = euclid::point2(location.x, location.y);
                 let finger_id = match touch.phase {
@@ -1780,6 +1845,14 @@ impl WinitWindowAdapter {
                         event_time: None,
                         history: Default::default(),
                     });
+                }
+                if matches!(
+                    touch.phase,
+                    winit::event::TouchPhase::Ended | winit::event::TouchPhase::Cancelled
+                ) {
+                    self.dispatch_internal_event(
+                        corelib::platform::InternalEvent::PointerPressure(1.0),
+                    );
                 }
             }
             WinitWindowEvent::ScaleFactorChanged { scale_factor, inner_size_writer } => {
@@ -2692,4 +2765,35 @@ fn canvas_has_explicit_size_set(canvas: &web_sys::HtmlCanvasElement) -> bool {
 
     computed_style.get_property_value("width").ok().as_deref() != Some("auto")
         || computed_style.get_property_value("height").ok().as_deref() != Some("auto")
+}
+
+#[cfg(test)]
+mod pointer_pressure_regressions {
+    use super::pointer_sample_pressure;
+    use winit::event::Force;
+
+    #[test]
+    fn normalizes_native_force_without_synthesizing_missing_pressure() {
+        assert_eq!(pointer_sample_pressure(None), 1.0);
+        assert_eq!(pointer_sample_pressure(Some(Force::Normalized(0.25))), 0.25);
+        assert_eq!(pointer_sample_pressure(Some(Force::Normalized(-1.0))), 0.0);
+        assert_eq!(pointer_sample_pressure(Some(Force::Normalized(2.0))), 1.0);
+        assert_eq!(pointer_sample_pressure(Some(Force::Normalized(f64::NAN))), 1.0);
+        assert_eq!(
+            pointer_sample_pressure(Some(Force::Calibrated {
+                force: 3.0,
+                max_possible_force: 12.0,
+                altitude_angle: None,
+            })),
+            0.25
+        );
+        assert_eq!(
+            pointer_sample_pressure(Some(Force::Calibrated {
+                force: 3.0,
+                max_possible_force: 0.0,
+                altitude_angle: None,
+            })),
+            1.0
+        );
+    }
 }

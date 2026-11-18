@@ -688,6 +688,10 @@ pub struct WindowInner {
     strong_component_ref: RefCell<Option<(ItemTreeRc, crate::context::KeepAlive)>>,
     mouse_input_state: Cell<MouseInputState>,
     touch_state: RefCell<TouchState>,
+    /// Pressure for the currently dispatched native pointer sample. Stored
+    /// per-window, never as process-global state, so separate input surfaces
+    /// cannot leak pressure into one another.
+    pub(crate) pointer_pressure: Cell<f32>,
     /// How the window adapter shows the current mouse cursor, `None` before the window asked.
     mouse_cursor_handling: RefCell<Option<MouseCursorHandling>>,
     /// The pointer position for the mouse cursor the renderer draws, `None` before the pointer
@@ -769,6 +773,7 @@ impl WindowInner {
             strong_component_ref: Default::default(),
             mouse_input_state: Default::default(),
             touch_state: Default::default(),
+            pointer_pressure: Cell::new(1.0),
             mouse_cursor_handling: Default::default(),
             software_cursor_position: Default::default(),
             cursor_image_overlay: Default::default(),
@@ -822,6 +827,7 @@ impl WindowInner {
         self.mouse_input_state.replace(Default::default());
         self.buttons_blocked_by_menu.set(0);
         self.touch_state.replace(Default::default());
+        self.pointer_pressure.set(1.0);
         self.component.replace(ItemTreeRc::downgrade(component));
         self.pinned_fields.window_properties_tracker.set_dirty(); // component changed, layout constraints for sure must be re-calculated
         let window_adapter = self.window_adapter();

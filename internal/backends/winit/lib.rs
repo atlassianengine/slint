@@ -42,6 +42,8 @@ mod ios;
 mod macos;
 mod touch_finger_id;
 #[cfg(target_os = "windows")]
+mod windows_pen;
+#[cfg(target_os = "windows")]
 mod windows_settings;
 
 /// Re-export of the winit crate.
