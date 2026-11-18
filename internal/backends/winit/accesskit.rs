@@ -187,7 +187,7 @@ impl AccessKitAdapter {
                 let state = self
                     .nodes
                     .text_state
-                    .get_or_update_cache_entry_ref(&inner_item_rc, Default::default);
+                    .get_or_update_cache_entry_ref(&wrapper_item, Default::default);
                 let (anchor, focus) = state.decode_selection(
                     window_adapter.renderer().as_core_renderer(),
                     text_input.as_pin_ref(),
@@ -374,7 +374,7 @@ struct NodeCollection {
     all_nodes: Vec<CachedNode>,
     root_node_id: NodeId,
     focused_node_tracker: Pin<Box<PropertyTracker<false, DelegateFocusPropertyTracker>>>,
-    /// Emission state, keyed by the inner `TextInput`'s `ItemRc`. Its per-entry property tracker
+    /// Emission state, keyed by the accessible wrapper's `ItemRc`. Its per-entry property tracker
     /// stays empty on purpose: the state has to outlive the edits it describes, so that NodeIds
     /// stay stable and screen readers see "node updated" rather than "subtree replaced".
     text_state: i_slint_core::item_rendering::ItemCache<
@@ -574,8 +574,9 @@ impl NodeCollection {
         let Some((inner_item_rc, text_input)) = find_exposed_text_input(item) else {
             return;
         };
-        let mut state =
-            self.text_state.get_or_update_cache_entry_ref(&inner_item_rc, Default::default);
+        // Nested accessible wrappers can refer to the same input.
+        // Each wrapper owns its TextRun IDs and selection map.
+        let mut state = self.text_state.get_or_update_cache_entry_ref(item, Default::default);
 
         // The inner `TextInput`'s geometry: a `LineEdit` insets it for its border, so measuring
         // from the wrapper's origin would place every TextRun off by the padding.
